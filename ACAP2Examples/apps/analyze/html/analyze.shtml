@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<title>Analyze page</title>
+<noscript>Please enable JavaScript in your browser and refresh the page.</noscript>
+<script language="JavaScript" type="text/javascript">
+
+
+/*********************************************
+ *                                           *
+ * An example of a web page for the AXIS SDK *
+ *                                           *
+ *********************************************/
+
+/* Global request object */
+var req;
+
+/* createRequest
+ * return: a XMLHttp request object
+ */
+function createRequest()
+{
+    if (window.XMLHttpRequest) {
+        return new window.XMLHttpRequest;
+    }
+    else {
+        try {
+            return new ActiveXObject("MSXML2.XMLHTTP.3.0");
+        }
+        catch(ex) {
+            return null;
+        }
+    }
+}
+
+/* sendRequest
+ * argument request: a request object
+ * return: a XMLHttp response
+ */
+function sendRequest(request)
+{
+  try {
+    request.send(null);
+  } catch(e) {}
+
+  if (request.status == 200) {
+    return request.responseText;
+  }
+}
+
+/* createWindow
+ * argument x: start position of window x coordinate
+ * argument y: start position of window y coordinate
+ * argument width: window width on the x-axis
+ * argument height: window height on the y-axis
+ * argument level:  motion detection threshold level
+ * return: a XMLHttp response
+ */
+function createWindow(x, y, width, height, level)
+{
+  var ts = new Date();
+  var action = "add-window&x=" +x +"&y=" +y +"&width=" +width +"&height=" +height +"&level=" +level +"&ts=" +ts.valueOf();
+  req.open("get", "/local/analyze/motion.cgi?action=" + action, false);
+  return sendRequest(req);
+}
+
+/* deleteWindow
+ * argument window_id: id of the window to be deleted
+ * return: a XMLHttp response
+ */
+function deleteWindow(window_id)
+{
+  var ts = new Date();
+  var action = "del-window&window=" + window_id +"&ts=" +ts.valueOf();
+  req.open("get", "/local/analyze/motion.cgi?action=" + action, false);
+  return sendRequest(req);
+}
+
+/* getWindowSettings
+ * argument window_id: id of the window to query settings for
+ * return: a XMLHttp response
+ */
+function getWindowSettings(window_id)
+{
+  var ts = new Date();
+  var action = "get-window&window=" + window_id +"&ts=" +ts.valueOf();
+  req.open("get", "/local/analyze/motion.cgi?action=" + action, false);
+  return sendRequest(req);
+}
+
+/* setWindowLevel
+ * argument window_id: id of the window to apply settings
+ * argument level:  motion detection threshold level
+ * return: a XMLHttp response
+ */
+function setWindowLevel(window_id, level)
+{
+  var ts = new Date();
+  var action = "set-level&window=" +window_id +"&level=" +level +"&ts=" +ts.valueOf();
+  req.open("get", "/local/analyze/motion.cgi?action=" + action, false);
+  return sendRequest(req);
+}
+
+/* get_nexSibling - Make sure the result is the same in all browsers.
+ * argument n: node type
+ * return: node type
+ */
+function getNextSibling(node)
+{
+  var nxt = node.nextSibling;
+  while (nxt != null && nxt.nodeType != 1) {
+    nxt = nxt.nextSibling;
+  }
+  return nxt;
+}
+
+/* pollEvents
+ * Parses the response from getWindowSettings("all")
+ * and writes formatted output to the webpage.
+ * This function will called periodically [see init()]
+ */
+function pollEvents() {
+  var id, x, y, w, h, l, m;
+  var sib;
+  var isIE = false;
+  var win, motion, resp, parser, xmldoc;
+  var dat = new Date();
+  var now = dat.toTimeString();
+  var res_str = "";
+  var cfg_str = "";
+
+  resp = getWindowSettings("all");
+  if (window.ActiveXObject) { // msie
+    xmldoc = new ActiveXObject("Microsoft.XMLDOM");
+    xmldoc.async = false;
+    xmldoc.loadXML(resp);
+  } else if (window.DOMParser){ // other browsers
+    parser = new DOMParser();
+    xmldoc = parser.parseFromString(resp,"text/xml");
+  } else {  // error
+    document.getElementById('MotionConfig').innerHTML = "JavaScript error, failed to create an XMLDocument";
+    return;
+  }
+
+  /* Example response, single window:
+  <Windows>
+    <Window>
+      <id>0</id>
+      <x>0</x>
+      <y>0</y>
+      <Width>0</Width>
+      <Height>0</Height>
+      <Level>0</Level>
+      <Motion>false</Motion>
+    </Window>
+  </Windows>
+  */
+ win = xmldoc.getElementsByTagName("Window");
+ if (typeof(win) != 'undefined' && win.length > 0) {
+   for (var i=0; i<win.length; i++){
+     id = win[i].getElementsByTagName('id')[0].firstChild.data;
+      x = win[i].getElementsByTagName('x')[0].firstChild.data;
+      y = win[i].getElementsByTagName('y')[0].firstChild.data;
+      w = win[i].getElementsByTagName('Width')[0].firstChild.data;
+      h = win[i].getElementsByTagName('Height')[0].firstChild.data;
+      l = win[i].getElementsByTagName('Level')[0].firstChild.data;
+      m = win[i].getElementsByTagName('Motion')[0].firstChild.data;
+
+      cfg_str += "Window[" +id +"]: " +w +"x" +h +"+" +x +"+" +y +", trigger level:" +l + "<br />";
+      if (m == "true") {
+        res_str += "[" + now + "]" +" Motion dectected in window[" +id +"]" + "<br />";
+      }
+    }
+    /* write results */
+    document.getElementById('MotionConfig').innerHTML = cfg_str;
+    document.getElementById('EventResults').innerHTML += res_str;
+  } else {
+    document.getElementById('MotionConfig').innerHTML = "No motion detection windows created yet.";
+  }
+}
+
+/* init
+ * Will be called when the page (re-)loads.
+ */
+function init()
+{
+  req = createRequest();
+  pollEvents();
+  setInterval(pollEvents, 1000);
+}
+// -->
+</script>
+
+</head>
+<body onLoad="init()">
+<div style="color:#00007F">
+ <h3>Create a new motion dectection window</h3>
+</div>
+<form name="settings">
+ <table>
+  <tr><td align="right">X pos:</td> <td align="left"><input type="number" name="xpos"   value="100" min="0" /></td></tr>
+  <tr><td align="right">Y pos:</td> <td align="left"><input type="number" name="ypos"   value="100" min="0" /></td></tr>
+  <tr><td align="right">Width:</td> <td align="left"><input type="number" name="width"  value="160" min="1" /></td></tr>
+  <tr><td align="right">Height:</td><td align="left"><input type="number" name="height" value="120" min="1" /></td></tr>
+  <tr><td align="right">Level:</td> <td align="left"><input type="number" name="level"  value="5"   min="1" /></td></tr>
+  <tr><td></td><td align="right"><input type="button" value="Create" onclick="javascript: createWindow(document.settings.xpos.value, document.settings.ypos.value, document.settings.width.value, document.settings.height.value, document.settings.level.value);"/></td></tr>
+  </table>
+</form>
+
+<div style="color:#00007F">
+ <h3>Current configuration</h3>
+</div>
+
+<div id="MotionConfig" style="color:#000000">
+ <!-- placeholder for the motion configuration -->
+</div>
+
+<div style="color:#00007F">
+ <h3>Motion Event Log</h3>
+</div>
+
+<div id="EventResults" style="color:#FF0000">
+  <!-- placeholder for the polled event results -->
+</div>
+
+</body>
+</html>
