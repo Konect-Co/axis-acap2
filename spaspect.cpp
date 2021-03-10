@@ -10,6 +10,8 @@
 
 #include <capture.h>
 
+#include "include/CVOutput.h"
+
 #ifdef DEBUG
 #define D(x)    x
 #else
@@ -20,7 +22,7 @@
 #define LOGERR(fmt, args...)     { syslog(LOG_CRIT, fmt, ## args); fprintf(stderr, fmt, ## args); }
 
 
-int main(){
+int main(int argc, char **argv){
 	media_stream *     stream;
 	media_frame *      frame;
  	struct timeval     tv_start, tv_end;
