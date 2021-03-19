@@ -11,6 +11,9 @@
 #include <capture.h>
 
 #include "include/CVOutput.h"
+#include "include/Track.h"
+#include "include/PixelMapper.h"
+#include "include/DashboardInfo.h"
 
 #ifdef DEBUG
 #define D(x)    x

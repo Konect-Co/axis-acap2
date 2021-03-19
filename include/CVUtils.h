@@ -14,6 +14,6 @@ namespace CVUtils{
 	int compute_area(int box[4]);
 	int compute_intersection(int boxA[4], int boxB[4]);
 	double compute_IoU(int boxA[4], int boxB[4]);
-	double compute_IoA(int boxA[4], int boxB[0]);
+	double compute_IoA(int boxA[4], int boxB[4]);
 }
 
