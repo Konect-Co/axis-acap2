@@ -5,7 +5,8 @@ name = "video1"
 cap = cv2.VideoCapture(name + ".mp4")
 tracker = cv2.TrackerCSRT_create()
 ret, frame = cap.read()
-bbox  = cv2.selectROI("tracking", frame)
+#bbox  = cv2.selectROI("tracking", frame)
+bbox = (136, 351, 158, 468)
 tracker.init(frame, bbox)
 
 cv2.destroyAllWindows()

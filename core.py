@@ -1,46 +1,71 @@
 import time
 import numpy as np
-import re
-import subprocess
 import cv2
 import os
+import log
 
 from cv_model import pred
 
-
-"""
-Credit: https://stackoverflow.com/questions/7368739/numpy-and-16-bit-pgm/7369986#7369986
-"""
-def read_pgm(filename, byteorder='>'):
-    """Return image data from a raw PGM file as numpy array.
-    Format specification: http://netpbm.sourceforge.net/doc/pgm.html
-    """
-    with open(filename, 'rb') as f:
-        buffer_ = f.read()
-    try:
-        header, width, height, maxval = re.search(
-            b"(^P5\s(?:\s*#.*[\r\n])*"
-            b"(\d+)\s(?:\s*#.*[\r\n])*"
-            b"(\d+)\s(?:\s*#.*[\r\n])*"
-            b"(\d+)\s(?:\s*#.*[\r\n]\s)*)", buffer_).groups()
-    except AttributeError:
-        raise ValueError("Not a raw PGM file: '%s'" % filename)
-    return np.frombuffer(buffer_,
-                         dtype='u1' if int(maxval) < 256 else byteorder+'u2',
-                         count=int(width)*int(height),
-                         offset=len(header)
-                         ).reshape((int(height), int(width)))
-
-def generateOutput():
-	min_threshold = 0.80
-	os.system("wget -q --user root --password pass123 \"http://10.0.0.148/mjpg/video.mjpg?fps=1&duration=2\" -O video.mjpeg")
+def readVideo(fps, duration, ip):
+	log.LOG_INFO("Starting Read")
+	wget_command = "wget -q --user root --password pass123 \"http://" + ip + "/mjpg/video.mjpg?fps=" + str(fps) + "&duration=" + str(duration) + "\" -O video.mjpeg"
+	os.system(wget_command)
 	cap = cv2.VideoCapture("video.mjpeg")
+	log.LOG_INFO("Ending Read")
+	return cap
+
+def readImage(fps, duration, ip):
+	cap = readVideo(fps, duration, ip)
 	res, image = cap.read()
 	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 	if not res:
-		print("Failed to read video.mjpeg")
+		log.LOG_ERR("Failed to read video.mjpeg")
 		return
-	#image = np.transpose(image, (1, 0, 2))
+	return image
+
+def track(fps, duration, ip):
+	cap = readVideo(fps, duration, ip)
+	res, frame = cap.read()
+	tracker = cv2.TrackerCSRT_create()
+	output = pred.predict(frame)
+	index = 0
+	bbox = output["boxes"][index]
+	bbox_temp = [0, 0, 0, 0]
+	bbox_temp[1] = int(bbox[0]*frame.shape[0])
+	bbox_temp[0] = int(bbox[1]*frame.shape[1])
+	bbox_temp[3] = int(bbox[2]*frame.shape[0])
+	bbox_temp[2] = int(bbox[3]*frame.shape[1])
+	bbox = bbox_temp
+	log.LOG_INFO(output["classes"][index] + " is being tracked with probability " + str(output["scores"][index]))
+	log.LOG_INFO("Bounding box: " + str(tuple(bbox)))
+	tracker.init(frame, tuple(bbox))
+	fourcc = cv2.VideoWriter_fourcc(*'XVID')
+	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+	width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+	name = "video"
+	out = cv2.VideoWriter(name + "_out.avi", fourcc, fps, (width,height))
+	frame_no = 1
+	while True:
+		ret, frame = cap.read()
+		if not ret:
+			break
+		success, box = tracker.update(frame)
+		if success:
+			(x, y, w, h) = [int(v) for v in box]
+			_ = cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+			out.write(frame)
+		else:
+			print("Failed at frame", frame_no)
+			break
+		frame_no += 1
+	cap.release()
+	out.release()
+
+
+def generateOutput():
+	min_threshold = 0.60
+
+	image = readImage(10, 15, "10.0.0.148")
 	output = pred.predict(image)
 	detection = False
 
@@ -57,16 +82,22 @@ def generateOutput():
 		print("No detection!!")
 	print()
 
-start_time = time.time()
-seconds = 2;
+if __name__ == '__main__':
+	track(10, 15, "10.0.0.148")
 
-measure1 = time.time()
-measure2 = time.time()
+"""
+if __name__ == "__main__":
+	start_time = time.time()
+	seconds = 3;
 
-while True:
-	if measure2 - measure1 >= seconds:
-		generateOutput()
-		measure1 = measure2
-		measure2 = time.time()
-	else:
-		measure2 = time.time()
+	measure1 = time.time()
+	measure2 = time.time()
+
+	while True:
+		if measure2 - measure1 >= seconds:
+			generateOutput()
+			measure1 = measure2
+			measure2 = time.time()
+		else:
+			measure2 = time.time()
+"""
