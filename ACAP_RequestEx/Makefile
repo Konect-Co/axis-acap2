@@ -2,5 +2,8 @@ CC = gcc
 FLAGS = -Wall
 
 all:
-	$(CC) main.c $(FLAGS)
-	./a.out
+	@sudo $(CC) main.c $(FLAGS)
+	@sudo ./a.out
+
+clean:
+	@sudo rm -rf ./a.out
