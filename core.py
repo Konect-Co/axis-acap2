@@ -3,8 +3,24 @@ import numpy as np
 import cv2
 import os
 import log
+import random
+import uuid
 
 from cv_model import pred
+
+def genRandomColor():
+	return (int(random.random()*255), int(random.random()*255), int(random.random()*255))
+
+class TrackedObject:
+	def __init__(self, tracker, bbox=None):
+		self.tracker = tracker
+		self.uuid = uuid.uuid4()
+		self.bbox = bbox
+		self.color = genRandomColor()
+
+	def updateBox(self, bbox):
+		self.bbox = bbox
+
 
 def readVideo(fps, duration, ip):
 	log.LOG_INFO("Starting Read")
@@ -23,44 +39,64 @@ def readImage(fps, duration, ip):
 		return
 	return image
 
-def track(fps, duration, ip):
+def track(fps=10, duration=15, ip='10.0.0.148'):
 	cap = readVideo(fps, duration, ip)
+	#cap = cv2.VideoCapture("video_orig.avi")
 	res, frame = cap.read()
 	tracker = cv2.TrackerCSRT_create()
 	output = pred.predict(frame)
-	index = 0
-	bbox = output["boxes"][index]
-	bbox_temp = [0, 0, 0, 0]
-	bbox_temp[1] = int(bbox[0]*frame.shape[0])
-	bbox_temp[0] = int(bbox[1]*frame.shape[1])
-	bbox_temp[3] = int(bbox[2]*frame.shape[0])
-	bbox_temp[2] = int(bbox[3]*frame.shape[1])
-	bbox = bbox_temp
-	log.LOG_INFO(output["classes"][index] + " is being tracked with probability " + str(output["scores"][index]))
-	log.LOG_INFO("Bounding box: " + str(tuple(bbox)))
-	tracker.init(frame, tuple(bbox))
+	detection_threshold = 0.8
+	trackingObjs = []
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
 	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 	width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 	name = "video"
+	orig = cv2.VideoWriter(name + "_orig.avi", fourcc, fps, (width,height))
 	out = cv2.VideoWriter(name + "_out.avi", fourcc, fps, (width,height))
+	if len(output["scores"]) == 0:
+		log.LOG_INFO("No Detections!!")
+
+	for index in range(len(output["scores"])):
+		score = output["scores"][index]
+		bbox = output["boxes"][index]
+		class_ = output["classes"][index]
+		if score < detection_threshold:
+			log.LOG_INFO("Exiting box search - No more objects")
+			break
+		bbox_temp = [0, 0, 0, 0]
+		bbox_temp[0] = int(bbox[0]*frame.shape[0])
+		bbox_temp[1] = int(bbox[1]*frame.shape[1])
+		bbox_temp[2] = int(bbox[2]*frame.shape[0])
+		bbox_temp[3] = int(bbox[3]*frame.shape[1])
+		bbox = bbox_temp
+		log.LOG_INFO(class_ + " is being tracked with probability " + str(score))
+		log.LOG_INFO("Bounding box: " + str(tuple(bbox)))
+		trackerObj = TrackedObject(cv2.TrackerCSRT_create())
+		bbox = (bbox[1], bbox[0], bbox[3]-bbox[1], bbox[2]-bbox[0])
+		trackerObj.tracker.init(frame, bbox)
+		trackingObjs.append(trackerObj)
 	frame_no = 1
 	while True:
 		ret, frame = cap.read()
+		orig.write(frame)
+		deleteTrackedObjs = []
 		if not ret:
 			break
-		success, box = tracker.update(frame)
-		if success:
-			(x, y, w, h) = [int(v) for v in box]
-			_ = cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-			out.write(frame)
-		else:
-			print("Failed at frame", frame_no)
-			break
+		for trackerObj in trackingObjs:
+			success, box = trackerObj.tracker.update(frame)
+			if success:
+				(x, y, w, h) = [int(v) for v in box]
+				_ = cv2.rectangle(frame, (x, y), (x+w, y+h), trackerObj.color, 2)
+			else:
+				deleteTrackedObjs.append(trackerObj)
+				#print("Failed at frame", frame_no)
 		frame_no += 1
+		out.write(frame)
+		for obj in deleteTrackedObjs:
+			trackingObjs.remove(obj)
 	cap.release()
 	out.release()
-
+	orig.release()
 
 def generateOutput():
 	min_threshold = 0.60
