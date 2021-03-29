@@ -40,18 +40,18 @@ def readImage(fps, duration, ip):
 	return image
 
 def track(fps=10, duration=15, ip='10.0.0.148'):
-	cap = readVideo(fps, duration, ip)
-	#cap = cv2.VideoCapture("video_orig.avi")
+	#cap = readVideo(fps, duration, ip)
+	cap = cv2.VideoCapture("video_orig.avi")
 	res, frame = cap.read()
 	tracker = cv2.TrackerCSRT_create()
 	output = pred.predict(frame)
-	detection_threshold = 0.8
+	detection_threshold = 0.6
 	trackingObjs = []
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
 	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 	width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 	name = "video"
-	orig = cv2.VideoWriter(name + "_orig.avi", fourcc, fps, (width,height))
+	#orig = cv2.VideoWriter(name + "_orig.avi", fourcc, fps, (width,height))
 	out = cv2.VideoWriter(name + "_out.avi", fourcc, fps, (width,height))
 	if len(output["scores"]) == 0:
 		log.LOG_INFO("No Detections!!")
@@ -78,7 +78,7 @@ def track(fps=10, duration=15, ip='10.0.0.148'):
 	frame_no = 1
 	while True:
 		ret, frame = cap.read()
-		orig.write(frame)
+		#orig.write(frame)
 		deleteTrackedObjs = []
 		if not ret:
 			break
@@ -87,6 +87,7 @@ def track(fps=10, duration=15, ip='10.0.0.148'):
 			if success:
 				(x, y, w, h) = [int(v) for v in box]
 				_ = cv2.rectangle(frame, (x, y), (x+w, y+h), trackerObj.color, 2)
+				cv2.putText(frame, "ID: " + str(trackerObj.uuid), (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, trackerObj.color, 2)
 			else:
 				deleteTrackedObjs.append(trackerObj)
 				#print("Failed at frame", frame_no)
@@ -96,7 +97,7 @@ def track(fps=10, duration=15, ip='10.0.0.148'):
 			trackingObjs.remove(obj)
 	cap.release()
 	out.release()
-	orig.release()
+	#orig.release()
 
 def generateOutput():
 	min_threshold = 0.60
