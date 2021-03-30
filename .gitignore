@@ -4,3 +4,4 @@ cv_model/
 __pycache__
 *.mjpeg
 Single-Multiple-Custom-Object-Detection-and-Tracking/
+*.bkp
