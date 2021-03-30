@@ -105,6 +105,8 @@ def track(fps=10, duration=15, ip='10.0.0.148'):
                 maxBox = output['boxes'][maxBoxIndex]
                 #convert maxBox to proper format
                 currTrackedObj.box = maxBox
+                for _, innerTrackedObjIoUs in IoU_vals:
+                    del innerTrackedObjIoUs[maxBoxIndex]
                 newTrackedObjs.remove(maxBoxIndex)
             #No adequate bounding box is found for currTrackedObj, so it should be deleted
             else:
