@@ -32,6 +32,8 @@ def track(fps=10, duration=15, ip='10.0.0.148'):
 	tracker = cv2.TrackerCSRT_create()
 	output = pred.predict(frame)
 	detection_threshold = 0.6
+    iou_threshold = 0.7
+    score_add_threshold = 0.8
 	trackingObjs = []
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
 	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -81,9 +83,49 @@ def track(fps=10, duration=15, ip='10.0.0.148'):
 		out.write(frame)
 		for obj in deleteTrackedObjs:
 			trackingObjs.remove(obj)
-		#Santript, this is commented because addToDatabase is not finished/tested
+        
+        output = pred.predict(frame)
+        IOU_vals = {}
+
+        #making a dictionary of IOU_vals
+        #each (key, value) of the dictionary is (<uuid of tracked object to_curr>, <dictionary of IoUs>)
+        #each (key, value) of <dictionary of IoUs> is (<index of bounding box bb_curr>, <IoU of to_curr.box and bb_curr>)
+        for trackedObj in trackedObjects:
+            IOU_vals[trackedObj.uuid] = {i:computeIOU(trackedObj.bbox, output['boxes'][i]) for i in range(len(output['boxes']))}
+
+        #setting up list of newTrackedObjs to add (starts off full, and boxes that match existing TrackedObjects are gradually removed)
+        #setting up list of trackedObjectsToDelete (starts off empty, trackedObjects with no corresponding bounding box are added)
+        #newTrackedObjs = list(range(<index of detections with score > score_add_threshold>) #TODO
+        trackedObjectsToDelete = []
+        for currTrackedObjUUID, trackedObjIoUs in IOU_vals:
+            #currTrackedObj = <find tracked object with specified uuid> #TODO
+            #maxBoxIndex, maxIoU = <find max IoU in trackedObjIoUs, the box index that corresponds to it> #TODO
+            #We have a match between currTrackedObject and maxBox, and can update the box value
+            if maxIoU > iou_threshold:
+                maxBox = output['boxes'][maxBoxIndex]
+                #convert maxBox to proper format
+                currTrackedObj.box = maxBox
+                newTrackedObjs.remove(maxBoxIndex)
+            #No adequate bounding box is found for currTrackedObj, so it should be deleted
+            else:
+                trackedObjectsToDelete.append(currTrackedObj)
+
+        #removing every TrackedObject in trackedObjectsToDelete
+        for trackedObjectToDelete in trackedObjectsToDelete:
+            trackingObjs.remove(trackedObjectToDelete)
+
+        #adding new TrackedObject for every bounding box index in newTrackedObj
+        for newTrackedObj in newTrackedObjs:
+            bbox = output['boxes'][newTrackedObj]
+            trackerObj = TrackedObject(cv2.TrackerCSRT_create())
+            trackerObj.tracker.init(frame, bbox)
+            trackingObjs.append(trackerObj)
+
+
+        #Santript, this is commented because addToDatabase is not finished/tested
         #databaseUpdate.addToDatabase(trackingObjs)
-	cap.release()
+
+    cap.release()
 	out.release()
 	#orig.release()
 
