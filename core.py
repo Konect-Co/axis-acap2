@@ -1,46 +1,108 @@
 import time
 import numpy as np
-import re
-import subprocess
 import cv2
 import os
+import log
+import random
+import uuid
 
 from cv_model import pred
 
+def genRandomColor():
+	return (int(random.random()*255), int(random.random()*255), int(random.random()*255))
 
-"""
-Credit: https://stackoverflow.com/questions/7368739/numpy-and-16-bit-pgm/7369986#7369986
-"""
-def read_pgm(filename, byteorder='>'):
-    """Return image data from a raw PGM file as numpy array.
-    Format specification: http://netpbm.sourceforge.net/doc/pgm.html
-    """
-    with open(filename, 'rb') as f:
-        buffer_ = f.read()
-    try:
-        header, width, height, maxval = re.search(
-            b"(^P5\s(?:\s*#.*[\r\n])*"
-            b"(\d+)\s(?:\s*#.*[\r\n])*"
-            b"(\d+)\s(?:\s*#.*[\r\n])*"
-            b"(\d+)\s(?:\s*#.*[\r\n]\s)*)", buffer_).groups()
-    except AttributeError:
-        raise ValueError("Not a raw PGM file: '%s'" % filename)
-    return np.frombuffer(buffer_,
-                         dtype='u1' if int(maxval) < 256 else byteorder+'u2',
-                         count=int(width)*int(height),
-                         offset=len(header)
-                         ).reshape((int(height), int(width)))
+class TrackedObject:
+	def __init__(self, tracker, bbox=None):
+		self.tracker = tracker
+		self.uuid = uuid.uuid4()
+		self.bbox = bbox
+		self.color = genRandomColor()
 
-def generateOutput():
-	min_threshold = 0.80
-	os.system("wget -q --user root --password pass123 \"http://10.0.0.148/mjpg/video.mjpg?fps=1&duration=2\" -O video.mjpeg")
+	def updateBox(self, bbox):
+		self.bbox = bbox
+
+
+def readVideo(fps, duration, ip):
+	log.LOG_INFO("Starting Read")
+	wget_command = "wget -q --user root --password pass123 \"http://" + ip + "/mjpg/video.mjpg?fps=" + str(fps) + "&duration=" + str(duration) + "\" -O video.mjpeg"
+	os.system(wget_command)
 	cap = cv2.VideoCapture("video.mjpeg")
+	log.LOG_INFO("Ending Read")
+	return cap
+
+def readImage(fps, duration, ip):
+	cap = readVideo(fps, duration, ip)
 	res, image = cap.read()
 	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 	if not res:
-		print("Failed to read video.mjpeg")
+		log.LOG_ERR("Failed to read video.mjpeg")
 		return
-	#image = np.transpose(image, (1, 0, 2))
+	return image
+
+def track(fps=10, duration=15, ip='10.0.0.148'):
+	#cap = readVideo(fps, duration, ip)
+	cap = cv2.VideoCapture("video_orig.avi")
+	res, frame = cap.read()
+	tracker = cv2.TrackerCSRT_create()
+	output = pred.predict(frame)
+	detection_threshold = 0.6
+	trackingObjs = []
+	fourcc = cv2.VideoWriter_fourcc(*'XVID')
+	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+	width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+	name = "video"
+	#orig = cv2.VideoWriter(name + "_orig.avi", fourcc, fps, (width,height))
+	out = cv2.VideoWriter(name + "_out.avi", fourcc, fps, (width,height))
+	if len(output["scores"]) == 0:
+		log.LOG_INFO("No Detections!!")
+
+	for index in range(len(output["scores"])):
+		score = output["scores"][index]
+		bbox = output["boxes"][index]
+		class_ = output["classes"][index]
+		if score < detection_threshold:
+			log.LOG_INFO("Exiting box search - No more objects")
+			break
+		bbox_temp = [0, 0, 0, 0]
+		bbox_temp[0] = int(bbox[0]*frame.shape[0])
+		bbox_temp[1] = int(bbox[1]*frame.shape[1])
+		bbox_temp[2] = int(bbox[2]*frame.shape[0])
+		bbox_temp[3] = int(bbox[3]*frame.shape[1])
+		bbox = bbox_temp
+		log.LOG_INFO(class_ + " is being tracked with probability " + str(score))
+		log.LOG_INFO("Bounding box: " + str(tuple(bbox)))
+		trackerObj = TrackedObject(cv2.TrackerCSRT_create())
+		bbox = (bbox[1], bbox[0], bbox[3]-bbox[1], bbox[2]-bbox[0])
+		trackerObj.tracker.init(frame, bbox)
+		trackingObjs.append(trackerObj)
+	frame_no = 1
+	while True:
+		ret, frame = cap.read()
+		#orig.write(frame)
+		deleteTrackedObjs = []
+		if not ret:
+			break
+		for trackerObj in trackingObjs:
+			success, box = trackerObj.tracker.update(frame)
+			if success:
+				(x, y, w, h) = [int(v) for v in box]
+				_ = cv2.rectangle(frame, (x, y), (x+w, y+h), trackerObj.color, 2)
+				cv2.putText(frame, "ID: " + str(trackerObj.uuid), (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, trackerObj.color, 2)
+			else:
+				deleteTrackedObjs.append(trackerObj)
+				#print("Failed at frame", frame_no)
+		frame_no += 1
+		out.write(frame)
+		for obj in deleteTrackedObjs:
+			trackingObjs.remove(obj)
+	cap.release()
+	out.release()
+	#orig.release()
+
+def generateOutput():
+	min_threshold = 0.60
+
+	image = readImage(10, 15, "10.0.0.148")
 	output = pred.predict(image)
 	detection = False
 
@@ -57,16 +119,22 @@ def generateOutput():
 		print("No detection!!")
 	print()
 
-start_time = time.time()
-seconds = 2;
+if __name__ == '__main__':
+	track(10, 15, "10.0.0.148")
 
-measure1 = time.time()
-measure2 = time.time()
+"""
+if __name__ == "__main__":
+	start_time = time.time()
+	seconds = 3;
 
-while True:
-	if measure2 - measure1 >= seconds:
-		generateOutput()
-		measure1 = measure2
-		measure2 = time.time()
-	else:
-		measure2 = time.time()
+	measure1 = time.time()
+	measure2 = time.time()
+
+	while True:
+		if measure2 - measure1 >= seconds:
+			generateOutput()
+			measure1 = measure2
+			measure2 = time.time()
+		else:
+			measure2 = time.time()
+"""
