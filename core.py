@@ -3,24 +3,10 @@ import numpy as np
 import cv2
 import os
 import log
-import random
-import uuid
 
 from cv_model import pred
-
-def genRandomColor():
-	return (int(random.random()*255), int(random.random()*255), int(random.random()*255))
-
-class TrackedObject:
-	def __init__(self, tracker, bbox=None):
-		self.tracker = tracker
-		self.uuid = uuid.uuid4()
-		self.bbox = bbox
-		self.color = genRandomColor()
-
-	def updateBox(self, bbox):
-		self.bbox = bbox
-
+from TrackedObject import TrackedObject
+import databaseUpdate
 
 def readVideo(fps, duration, ip):
 	log.LOG_INFO("Starting Read")
@@ -95,6 +81,8 @@ def track(fps=10, duration=15, ip='10.0.0.148'):
 		out.write(frame)
 		for obj in deleteTrackedObjs:
 			trackingObjs.remove(obj)
+		#Santript, this is commented because addToDatabase is not finished/tested
+        #databaseUpdate.addToDatabase(trackingObjs)
 	cap.release()
 	out.release()
 	#orig.release()
