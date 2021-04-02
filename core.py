@@ -20,7 +20,7 @@ def xyxy2yxhw(xyxy):
 def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 	detection_threshold=0.4
 	score_add_threshold = 0.6
-	iou_threshold = 0.5
+	iou_threshold = 0.3
 	deleteTrackedObjs = []
 	IOU_vals = {}
 
@@ -29,12 +29,15 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 		if verbose:
 			log.LOG_INFO("Box: ", box)
 		if success:
+			trackerObj.streakUntracked = 0
 			trackerObj.updateBox(box)
 			(x, y, w, h) = [int(v) for v in box]
 			_ = cv2.rectangle(frame, (x, y), (x+w, y+h), trackerObj.color, 2)
 			cv2.putText(frame, "ID: " + str(trackerObj.uuid)[:5], (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, trackerObj.color, 2)
 		else:
-			deleteTrackedObjs.append(trackerObj)
+			trackerObj.streakUntracked += 1
+			if (trackerObj.streakUntracked > 0):
+				deleteTrackedObjs.append(trackerObj)
 			if verbose:
 				log.LOG_ERR("Failed at frame", frame_no)
 
@@ -116,8 +119,8 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 					deleteTrackedObjs.append(currTrackedObj)
 
 		#removing every TrackedObject in deleteTrackedObjs
-		for trackedObjectToDelete in deleteTrackedObjs:
-			trackingObjs.remove(trackedObjectToDelete)
+		#for trackedObjectToDelete in deleteTrackedObjs:
+			#trackingObjs.remove(trackedObjectToDelete)
 
 		#adding new TrackedObject for every bounding box index in newTrackedObj
 		for newTrackedObj in newTrackedObjs:

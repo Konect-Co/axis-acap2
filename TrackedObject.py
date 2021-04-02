@@ -11,6 +11,7 @@ class TrackedObject:
 		#(x, y, w, h) format
 		self.bbox = bbox
 		self.color = genRandomColor()
+		self.streakUntracked = 0
 
 	def updateBox(self, bbox):
 		self.bbox = bbox
