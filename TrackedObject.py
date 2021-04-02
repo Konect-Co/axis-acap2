@@ -8,6 +8,7 @@ class TrackedObject:
 	def __init__(self, tracker, bbox=None):
 		self.tracker = tracker
 		self.uuid = uuid.uuid4()
+		#(x, y, w, h) format
 		self.bbox = bbox
 		self.color = genRandomColor()
 
