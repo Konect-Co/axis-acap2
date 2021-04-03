@@ -1,27 +1,6 @@
 import mysql.connector
-
 import log
-
-my_database = mysql.connector.connect(
-   host="localhost",
-   user="root",
-   password="mypass123",
-   database="retail"
-)
-
-log.LOG_INFO("Connected to:", my_database.get_server_info())
-
-"""
-mycursor = my_database.cursor()
-
-query = "UPDATE peopleTracking SET active = %s WHERE tracking_id = %s"
-values = ('No', '33487cd4')
-
-mycursor.execute(query, values)
-my_database.commit()
-
-log.LOG_INFO(mycursor.rowcount, "record(s) affected")
-"""
+from sshtunnel import SSHTunnelForwarder
 
 """
 trackedObjects is a list of TrackedObject instances.
@@ -38,3 +17,23 @@ def addToDatabase(trackedObjects):
         if curr_obj not present in the database:
             add new entry to database
     """
+
+
+my_database = mysql.connector.connect(
+    host="18.188.84.0",
+    user="santript",
+    password="mypass123",
+    database="spaspect"
+)
+
+print("Connected to:", my_database.get_server_info())
+
+mycursor = my_database.cursor()
+
+query = "UPDATE cameraRecords SET active = %s WHERE tracking_id = %s"
+values = ('No', '52e75c81')
+
+mycursor.execute(query, values)
+my_database.commit()
+
+log.LOG_INFO(mycursor.rowcount, "record(s) affected")
