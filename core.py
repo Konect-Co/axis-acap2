@@ -24,6 +24,9 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 	deleteTrackedObjs = []
 	IOU_vals = {}
 
+	if performPrediction:
+		output = pred.predict(frame)
+
 	for trackerObj in trackingObjs:
 		success, box = trackerObj.tracker.update(frame)
 		if verbose:
@@ -46,7 +49,6 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 		trackingObjs.remove(obj)
 
 	if performPrediction:
-		output = pred.predict(frame)
 		numDetections = np.where(np.array(output['scores']) > detection_threshold)[0].size
 		output['scores'] = output['scores'][:numDetections]
 		output['boxes'] = output['boxes'][:numDetections]
@@ -119,8 +121,8 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 					deleteTrackedObjs.append(currTrackedObj)
 
 		#removing every TrackedObject in deleteTrackedObjs
-		#for trackedObjectToDelete in deleteTrackedObjs:
-			#trackingObjs.remove(trackedObjectToDelete)
+		for trackedObjectToDelete in deleteTrackedObjs:
+			trackingObjs.remove(trackedObjectToDelete)
 
 		#adding new TrackedObject for every bounding box index in newTrackedObj
 		for newTrackedObj in newTrackedObjs:
@@ -146,13 +148,13 @@ def track():
 		duration=15
 		ip='10.0.0.148'
 
-	frame_no = 0
+	frame_no = -1
 	trackingObjs = []
 	#creating the video capture for the input video
 	if fromLive:
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
-		cap = cv2.VideoCapture(name + "_orig.avi")
+		cap = cv2.VideoCapture(name + "_orig.mp4")
 
 	#preparing the video out writer
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -180,7 +182,7 @@ def track():
 		orig.release()
 
 if __name__ == '__main__':
-	track(10, 15, "10.0.0.148")
+	track()
 
 """
 if __name__ == "__main__":
