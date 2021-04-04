@@ -1,3 +1,7 @@
+import log
+import os
+import cv2
+
 def readVideo(fps, duration, ip):
 	log.LOG_INFO("Starting Read")
 	wget_command = "wget -q --user root --password pass123 \"http://" + ip + "/mjpg/video.mjpg?fps=" + str(fps) + "&duration=" + str(duration) + "\" -O video.mjpeg"

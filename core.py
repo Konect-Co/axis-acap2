@@ -140,13 +140,14 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 def track():
 	scaling = 6
 	name = "video"
-	fromLive = False
-	writeOrig = False
+	fromLive = True
+	writeOrig = True
 	verbose = False
+	fps = 10.0
 	if (fromLive):
 		fps=10
 		duration=15
-		ip='10.0.0.148'
+		ip='10.0.0.146'
 
 	frame_no = -1
 	trackingObjs = []
@@ -154,13 +155,14 @@ def track():
 	if fromLive:
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
-		cap = cv2.VideoCapture(name + "_orig.mp4")
+		cap = cv2.VideoCapture(name + "_orig1.avi")
 
 	#preparing the video out writer
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
 	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 	width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-	fps = cap.get(cv2.CAP_PROP_FPS)
+	#fps = cap.get(cv2.CAP_PROP_FPS)
+	log.LOG_INFO("FPS:", fps)
 	if writeOrig:
 		orig = cv2.VideoWriter(name + "_orig.avi", fourcc, fps, (width,height))
 	out = cv2.VideoWriter(name + "_out.avi", fourcc, fps, (width,height))
