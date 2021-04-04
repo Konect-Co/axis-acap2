@@ -18,8 +18,8 @@ def xyxy2yxhw(xyxy):
 	return [xyxy[1], xyxy[0], xyxy[3]-xyxy[1], xyxy[2]-xyxy[0]]
 
 def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
-	detection_threshold=0.4
-	score_add_threshold = 0.6
+	detection_threshold=0.3
+	score_add_threshold = 0.3
 	iou_threshold = 0.3
 	deleteTrackedObjs = []
 	IOU_vals = {}
@@ -135,7 +135,7 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 
 
 	#Santript, this is commented because addToDatabase is not finished/tested
-	#databaseUpdate.addToDatabase(trackingObjs)
+	databaseUpdate.addToDatabase(trackingObjs)
 
 def track():
 	scaling = 6
