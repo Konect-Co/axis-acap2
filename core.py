@@ -122,6 +122,7 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 
 		#removing every TrackedObject in deleteTrackedObjs
 		for trackedObjectToDelete in deleteTrackedObjs:
+			databaseUpdate.deleteTrackingObject(trackedObjectToDelete)
 			trackingObjs.remove(trackedObjectToDelete)
 
 		#adding new TrackedObject for every bounding box index in newTrackedObj
@@ -140,12 +141,11 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 def track():
 	scaling = 6
 	name = "video"
-	fromLive = True
-	writeOrig = True
+	fromLive = False
+	writeOrig = False
 	verbose = False
-	fps = 10.0
 	if (fromLive):
-		fps=10
+		fps = 10
 		duration=15
 		ip='10.0.0.146'
 
@@ -155,13 +155,13 @@ def track():
 	if fromLive:
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
-		cap = cv2.VideoCapture(name + "_orig1.avi")
+		cap = cv2.VideoCapture(name + "_orig.mp4")
 
 	#preparing the video out writer
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
 	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 	width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-	#fps = cap.get(cv2.CAP_PROP_FPS)
+	fps = cap.get(cv2.CAP_PROP_FPS)
 	log.LOG_INFO("FPS:", fps)
 	if writeOrig:
 		orig = cv2.VideoWriter(name + "_orig.avi", fourcc, fps, (width,height))
@@ -170,18 +170,34 @@ def track():
 	#Looping through every frame of the video
 	while True:
 		frame_no += 1
+		if (frame_no > 1):
+			break
 		ret, frame = cap.read()
 		if not ret:
 			break
 		if writeOrig:
 			orig.write(frame)
 		processFrame(frame, trackingObjs, frame_no % scaling == 0, out, verbose=verbose)
-		log.LOG_INFO("\nNext Frame", frame_no, "\n")
+		log.LOG_INFO("\nNext Frame", frame_no+1, "\n")
 
 	cap.release()
 	out.release()
 	if writeOrig:
 		orig.release()
+
+	delete = True
+	if delete:
+		for trackingObj in trackingObjs:
+			databaseUpdate.deleteTrackingObject(trackingObj)
+	else:
+		log.LOG_INFO("To clear table, execute following statements:\n***")
+		for trackedObject in trackingObjs:
+			id = str(trackedObject.uuid)[:8]
+			query_delete_record = "DELETE FROM cameraRecords WHERE tracking_id=\'" + id + "\'" + ";"
+			query_delete_table = "DROP TABLE IF EXISTS obj_" + id + ";"
+			print(query_delete_record)
+			print(query_delete_table)
+		print("***")
 
 if __name__ == '__main__':
 	track()

@@ -3,7 +3,7 @@ import log
 
 my_database = mysql.connector.connect(
     host="18.188.84.0",
-    user="santript",
+    user="ravit",
     password="mypass123",
     database="spaspect"
 )
@@ -50,11 +50,11 @@ def getUpdateKeysValueStr(fields):
 def deleteTrackingObject(trackedObject):
     id = str(trackedObject.uuid)[:8]
 
-    query_delete_record = "DELETE From cameraRecords where tracking_id=\'" + id + "\'"
-    mycursor.execute(query_makeTable)
+    query_delete_record = "DELETE FROM cameraRecords WHERE tracking_id=\'" + id + "\'"
+    mycursor.execute(query_delete_record)
     
-    query_delete_table = "Drop table If exists obj_" + id
-    mycursor.execute(query_makeTable)
+    query_delete_table = "DROP TABLE IF EXISTS obj_" + id
+    mycursor.execute(query_delete_table)
     
     my_database.commit()
 
