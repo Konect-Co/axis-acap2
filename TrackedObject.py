@@ -15,6 +15,10 @@ class TrackedObject:
         self.color = genRandomColor()
         self.streakUntracked = 0
 
+        self.age = []
+        self.gender = []
+        self.race = []
+
     def updateBox(self, bbox, time=None):
         self.bbox = bbox
         self.latestUpdate = time if time is not None else datetime.datetime.now()

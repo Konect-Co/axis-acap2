@@ -4,11 +4,15 @@ import cv2
 import os
 import log
 import utils
-
 from cv_model import pred
+
+from mtcnn.mtcnn import MTCNN
 from TrackedObject import TrackedObject
 import databaseUpdate
 import readUtils
+
+face_detector = MTCNN()
+demographics_model = load_model('KonectDemographics.h5')
 
 def xywh2xyxy(xywh):
 	return [xywh[0], xywh[1], xywh[0]+xywh[2], xywh[1]+xywh[3]]
@@ -17,10 +21,21 @@ def xyxy2xywh(xyxy):
 def xyxy2yxhw(xyxy):
 	return [xyxy[1], xyxy[0], xyxy[3]-xyxy[1], xyxy[2]-xyxy[0]]
 
+def interpret_demographics_label(age_label, gender_label, race_label):
+	races = ["White", "Black", "Asian", "Indian", "Other"]
+	age = int(age_label[0]*116)
+	gender = "male" if gender_label[0]<0.5 else "female"
+	#print(races, race_label.flatten())
+	#print(gender_label[0])
+	race = races[np.argmax(race_label.flatten())]
+
+	return age, gender, race
+
 def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 	detection_threshold=0.3
 	score_add_threshold = 0.3
 	iou_threshold = 0.3
+	face_ioa_threshold = 0.95
 	deleteTrackedObjs = []
 	IOU_vals = {}
 
@@ -134,7 +149,50 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 			trackerObj.tracker.init(frame, tuple(bbox))
 			trackingObjs.append(trackerObj)
 
+	#TODO: Santript, I wrote the demographics updating code here, but commented it since untested
+	#Maybe we can go through it together and make it work
+	"""
+	#making a copy so that when TrackedObject is removed from this list, it remains in original
+	trackingObjsDemographics = copy(trackingObjs)
+	#obtaining face detections for current frame
+	faces = detector.detect_faces(frame)
+	for face in faces:
+		#index to iterate through the tracking objects
+		i = 0
+		while i < len(trackingObjsDemographics):
+			#obtaining the current tracking object
+			trackingObj = trackingObjsDemographics[i]
 
+			#obtaining both boxes in x, y, w, h format
+			face_box = face['box']
+			face_x, face_y, face_w, face_h = face_box
+			tracking_box = trackingObj.bbox
+
+			#computing IoA for the face, to determine whether there is a match
+			ioa = utils.computeIOA(face_box, tracking_box)
+			if (ioa > face_ioa_threshold):
+				#obtaining the ROI for the face
+				face_roi = frame[face_x, face_y, face_x+face_w, face_y+face_h]
+				face_roi = cv2.resize(frame_roi, (150, 150))
+				
+				#predicting demographics
+				face_demographics = demographics_model.predict(face_roi)
+				age, gender, race = interpret_demographics_label(face_demographics[0][0], face_demographics[1][0], face_demographics[2][0])
+				
+				#Updating the demographics of the tracking object=
+				trackingObject.age.append(age)
+				trackingObject.gender.append(gender)
+				trackingObject.race.append(race)
+
+				#Removing the object so it is not updated again in the current frame
+				trackingObjsDemographics.remove(trackingObj)
+				continue
+
+			#Increasing i if there is no matching face found
+			i++
+	"""
+
+	#TODO: We now need to update the database based on the demographics predictions that are coming in
 	#Santript, this is commented because addToDatabase is not finished/tested
 	databaseUpdate.addToDatabase(trackingObjs)
 
@@ -170,7 +228,7 @@ def track():
 	#Looping through every frame of the video
 	while True:
 		frame_no += 1
-		if (frame_no > 1):
+		if (frame_no > 10):
 			break
 		ret, frame = cap.read()
 		if not ret:
@@ -185,7 +243,7 @@ def track():
 	if writeOrig:
 		orig.release()
 
-	delete = True
+	delete = False
 	if delete:
 		for trackingObj in trackingObjs:
 			databaseUpdate.deleteTrackingObject(trackingObj)

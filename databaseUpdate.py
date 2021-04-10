@@ -7,7 +7,7 @@ my_database = mysql.connector.connect(
     password="mypass123",
     database="spaspect"
 )
-mycursor = my_database.cursor()
+mycursor = my_database.cursor(buffered=True)
 
 log.LOG_INFO("Connected to:", my_database.get_server_info())
 
