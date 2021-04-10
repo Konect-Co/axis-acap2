@@ -34,6 +34,7 @@ def interpret_demographics_label(age_label, gender_label, race_label):
 def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 	detection_threshold=0.3
 	score_add_threshold = 0.3
+
 	iou_threshold = 0.3
 	face_ioa_threshold = 0.95
 	deleteTrackedObjs = []
@@ -137,6 +138,7 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 
 		#removing every TrackedObject in deleteTrackedObjs
 		for trackedObjectToDelete in deleteTrackedObjs:
+			deletedObjects.append(trackedObjectToDelete)
 			databaseUpdate.deleteTrackingObject(trackedObjectToDelete)
 			trackingObjs.remove(trackedObjectToDelete)
 
@@ -199,27 +201,29 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 def track():
 	scaling = 6
 	name = "video"
-	fromLive = False
+	fromLive = True
 	writeOrig = False
 	verbose = False
 	if (fromLive):
-		fps = 10
-		duration=15
+		fps = 1
+		duration=2
 		ip='10.0.0.146'
 
 	frame_no = -1
 	trackingObjs = []
+	deleteTrackedObjs = []
 	#creating the video capture for the input video
 	if fromLive:
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
-		cap = cv2.VideoCapture(name + "_orig.mp4")
+		cap = cv2.VideoCapture(name + "_orig.avi")
 
 	#preparing the video out writer
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
 	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 	width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-	fps = cap.get(cv2.CAP_PROP_FPS)
+	if fromLive == False:
+		fps = cap.get(cv2.CAP_PROP_FPS)
 	log.LOG_INFO("FPS:", fps)
 	if writeOrig:
 		orig = cv2.VideoWriter(name + "_orig.avi", fourcc, fps, (width,height))
@@ -228,14 +232,16 @@ def track():
 	#Looping through every frame of the video
 	while True:
 		frame_no += 1
-		if (frame_no > 10):
+
+		if (frame_no > 1):
 			break
+
 		ret, frame = cap.read()
 		if not ret:
 			break
 		if writeOrig:
 			orig.write(frame)
-		processFrame(frame, trackingObjs, frame_no % scaling == 0, out, verbose=verbose)
+		processFrame(frame, trackingObjs, deleteTrackedObjs, frame_no % scaling == 0, out, verbose=verbose)
 		log.LOG_INFO("\nNext Frame", frame_no+1, "\n")
 
 	cap.release()
@@ -255,6 +261,10 @@ def track():
 			query_delete_table = "DROP TABLE IF EXISTS obj_" + id + ";"
 			print(query_delete_record)
 			print(query_delete_table)
+		for trackedObject in deleteTrackedObjs:
+			id = str(trackedObject.uuid)[:8]
+			query_delete_record = "DELETE FROM cameraRecords WHERE tracking_id=\'" + id + "\'" + ";"
+			print(query_delete_record)
 		print("***")
 
 if __name__ == '__main__':

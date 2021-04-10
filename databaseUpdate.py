@@ -50,9 +50,14 @@ def getUpdateKeysValueStr(fields):
 def deleteTrackingObject(trackedObject):
     id = str(trackedObject.uuid)[:8]
 
+    """
     query_delete_record = "DELETE FROM cameraRecords WHERE tracking_id=\'" + id + "\'"
     mycursor.execute(query_delete_record)
-    
+    """
+
+    query_alter_activity = "UPDATE cameraRecords SET active=\'No\' WHERE tracking_id=\'" + id + "\'"
+    mycursor.execute(query_alter_activity)
+
     query_delete_table = "DROP TABLE IF EXISTS obj_" + id
     mycursor.execute(query_delete_table)
     
@@ -120,7 +125,7 @@ def addToDatabase(trackedObjects):
         countQuery = "SELECT count(*) FROM cameraRecords WHERE tracking_id = \'" + id + "\'"
         mycursor.execute(countQuery)
 
-        countResultRaw = mycursor.fetchall() 
+        countResultRaw = mycursor.fetchall()
         countResult = countResultRaw[0][0]
         my_database.commit()
         if countResult == 0:
