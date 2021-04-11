@@ -1,13 +1,14 @@
+from cv_model import pred
+from mtcnn.mtcnn import MTCNN
+from tensorflow.keras.models import load_model
+from TrackedObject import TrackedObject
+
 import time
 import numpy as np
 import cv2
 import os
 import log
 import utils
-from cv_model import pred
-
-from mtcnn.mtcnn import MTCNN
-from TrackedObject import TrackedObject
 import databaseUpdate
 import readUtils
 
@@ -31,7 +32,7 @@ def interpret_demographics_label(age_label, gender_label, race_label):
 
 	return age, gender, race
 
-def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
+def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, verbose=False):
 	detection_threshold=0.3
 	score_add_threshold = 0.3
 
@@ -153,11 +154,11 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 
 	#TODO: Santript, I wrote the demographics updating code here, but commented it since untested
 	#Maybe we can go through it together and make it work
-	"""
+	
 	#making a copy so that when TrackedObject is removed from this list, it remains in original
-	trackingObjsDemographics = copy(trackingObjs)
+	trackingObjsDemographics = trackingObjs.copy()
 	#obtaining face detections for current frame
-	faces = detector.detect_faces(frame)
+	faces = face_detector.detect_faces(frame)
 	for face in faces:
 		#index to iterate through the tracking objects
 		i = 0
@@ -174,25 +175,27 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 			ioa = utils.computeIOA(face_box, tracking_box)
 			if (ioa > face_ioa_threshold):
 				#obtaining the ROI for the face
-				face_roi = frame[face_x, face_y, face_x+face_w, face_y+face_h]
-				face_roi = cv2.resize(frame_roi, (150, 150))
+				face_x2, face_y2 = face_x + face_w, face_y + face_h
+
+				face_roi = frame[face_y:face_y2, face_x:face_x2]
+				face_roi = cv2.resize(face_roi, (150, 150))
+				face_roi = np.expand_dims(face_roi, 0)
 				
 				#predicting demographics
 				face_demographics = demographics_model.predict(face_roi)
 				age, gender, race = interpret_demographics_label(face_demographics[0][0], face_demographics[1][0], face_demographics[2][0])
 				
 				#Updating the demographics of the tracking object=
-				trackingObject.age.append(age)
-				trackingObject.gender.append(gender)
-				trackingObject.race.append(race)
+				trackingObj.updateAge(age)
+				trackingObj.updateGender(gender)
+				trackingObj.updateRace(race)
 
 				#Removing the object so it is not updated again in the current frame
 				trackingObjsDemographics.remove(trackingObj)
 				continue
 
 			#Increasing i if there is no matching face found
-			i++
-	"""
+			i+=1
 
 	#TODO: We now need to update the database based on the demographics predictions that are coming in
 	#Santript, this is commented because addToDatabase is not finished/tested
@@ -201,7 +204,7 @@ def processFrame(frame, trackingObjs, performPrediction, out, verbose=False):
 def track():
 	scaling = 6
 	name = "video"
-	fromLive = True
+	fromLive = False
 	writeOrig = False
 	verbose = False
 	if (fromLive):
@@ -216,7 +219,7 @@ def track():
 	if fromLive:
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
-		cap = cv2.VideoCapture(name + "_orig.avi")
+		cap = cv2.VideoCapture(name + "_orig.mp4")
 
 	#preparing the video out writer
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -233,7 +236,7 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 1):
+		if (frame_no > 8):
 			break
 
 		ret, frame = cap.read()
@@ -241,7 +244,7 @@ def track():
 			break
 		if writeOrig:
 			orig.write(frame)
-		processFrame(frame, trackingObjs, deleteTrackedObjs, frame_no % scaling == 0, out, verbose=verbose)
+		processFrame(frame, trackingObjs, deleteTrackedObjs, frame_no % scaling == 0, out, verbose)
 		log.LOG_INFO("\nNext Frame", frame_no+1, "\n")
 
 	cap.release()

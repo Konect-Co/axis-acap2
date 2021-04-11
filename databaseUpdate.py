@@ -66,7 +66,7 @@ def deleteTrackingObject(trackedObject):
 def updateTrackingObject(trackedObject):
     id = str(trackedObject.uuid)[:8]
 
-    fields = {"end_time":trackedObject.latestUpdate}
+    fields = {"end_time":trackedObject.latestUpdate, "age":trackedObject.age, "gender": trackedObject.gender, "race": trackedObject.race}
     updateFieldsStr = getUpdateKeysValueStr(fields)
     query_update_record = "UPDATE cameraRecords SET " + updateFieldsStr + " WHERE tracking_id=\'" + id + "\'"
     mycursor.execute(query_update_record)
@@ -96,7 +96,7 @@ def newTrackingObject(trackedObject):
     mycursor.execute(query_updateTable)
     
     #Inserting into the master record with the tracked object
-    fields = {'tracking_id': id, 'start_time': trackedObject.latestUpdate, 'end_time': trackedObject.latestUpdate, 'active':'Yes'}
+    fields = {'tracking_id': id, 'start_time': trackedObject.latestUpdate, 'end_time': trackedObject.latestUpdate, 'active':'Yes', 'race': trackedObject.race, 'age': trackedObject.age, 'gender': trackedObject.gender}
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateMaster = "INSERT INTO " + masterTable + " " + keys_str + " VALUES " + values_str;
     mycursor.execute(query_updateMaster)
