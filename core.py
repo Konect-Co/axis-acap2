@@ -26,11 +26,20 @@ def interpret_demographics_label(age_label, gender_label, race_label):
 	races = ["White", "Black", "Asian", "Indian", "Other"]
 	age = int(age_label[0]*116)
 	gender = "male" if gender_label[0]<0.5 else "female"
+	print("age_label:", age_label)
+	print("Age:",age)
 	#print(races, race_label.flatten())
 	#print(gender_label[0])
 	race = races[np.argmax(race_label.flatten())]
 
 	return age, gender, race
+
+def preprocess_image(image_orig):
+	image = cv2.resize(image_orig, (150, 150))
+	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+	image = np.expand_dims(image, 0).astype(np.float16)
+	image = image/255
+	return image
 
 def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, verbose=False):
 	detection_threshold=0.3
@@ -44,6 +53,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 	if performPrediction:
 		output = pred.predict(frame)
 
+	rectangles = []
 	for trackerObj in trackingObjs:
 		success, box = trackerObj.tracker.update(frame)
 		if verbose:
@@ -52,8 +62,9 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 			trackerObj.streakUntracked = 0
 			trackerObj.updateBox(box)
 			(x, y, w, h) = [int(v) for v in box]
-			_ = cv2.rectangle(frame, (x, y), (x+w, y+h), trackerObj.color, 2)
-			cv2.putText(frame, "ID: " + str(trackerObj.uuid)[:5], (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, trackerObj.color, 2)
+			#_ = cv2.rectangle(frame, (x, y), (x+w, y+h), trackerObj.color, 2)
+			rectangles.append(((x,y), (x+w, y+h), trackerObj.color, trackerObj.uuid))
+			#cv2.putText(frame, "ID: " + str(trackerObj.uuid)[:5], (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, trackerObj.color, 2)
 		else:
 			trackerObj.streakUntracked += 1
 			if (trackerObj.streakUntracked > 0):
@@ -61,7 +72,6 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 			if verbose:
 				log.LOG_ERR("Failed at frame", frame_no)
 
-	out.write(frame)
 	for obj in deleteTrackedObjs:
 		trackingObjs.remove(obj)
 
@@ -156,49 +166,57 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 	#Maybe we can go through it together and make it work
 	
 	#making a copy so that when TrackedObject is removed from this list, it remains in original
-	trackingObjsDemographics = trackingObjs.copy()
-	#obtaining face detections for current frame
-	faces = face_detector.detect_faces(frame)
-	for face in faces:
-		#index to iterate through the tracking objects
-		i = 0
-		while i < len(trackingObjsDemographics):
-			#obtaining the current tracking object
-			trackingObj = trackingObjsDemographics[i]
 
-			#obtaining both boxes in x, y, w, h format
-			face_box = face['box']
-			face_x, face_y, face_w, face_h = face_box
-			tracking_box = trackingObj.bbox
+	if performPrediction:
+		
+		trackingObjsDemographics = trackingObjs.copy()
+		#obtaining face detections for current frame
+		faces = face_detector.detect_faces(frame)
+		for face in faces:
+			#index to iterate through the tracking objects
+			i = 0
+			while i < len(trackingObjsDemographics):
+				#obtaining the current tracking object
+				trackingObj = trackingObjsDemographics[i]
 
-			#computing IoA for the face, to determine whether there is a match
-			ioa = utils.computeIOA(face_box, tracking_box)
-			if (ioa > face_ioa_threshold):
-				#obtaining the ROI for the face
-				face_x2, face_y2 = face_x + face_w, face_y + face_h
+				#obtaining both boxes in x, y, w, h format
+				face_box = face['box']
+				face_x, face_y, face_w, face_h = face_box
+				tracking_box = trackingObj.bbox
 
-				face_roi = frame[face_y:face_y2, face_x:face_x2]
-				face_roi = cv2.resize(face_roi, (150, 150))
-				face_roi = np.expand_dims(face_roi, 0)
-				
-				#predicting demographics
-				face_demographics = demographics_model.predict(face_roi)
-				age, gender, race = interpret_demographics_label(face_demographics[0][0], face_demographics[1][0], face_demographics[2][0])
-				
-				#Updating the demographics of the tracking object=
-				trackingObj.updateAge(age)
-				trackingObj.updateGender(gender)
-				trackingObj.updateRace(race)
+				#computing IoA for the face, to determine whether there is a match
+				ioa = utils.computeIOA(face_box, tracking_box)
+				if (ioa > face_ioa_threshold):
+					#obtaining the ROI for the face
+					face_x2, face_y2 = face_x + face_w, face_y + face_h
 
-				#Removing the object so it is not updated again in the current frame
-				trackingObjsDemographics.remove(trackingObj)
-				continue
+					face_roi = frame[face_y:face_y2, face_x:face_x2]
+					cv2.imwrite('images/img_{}.png'.format(str(trackingObj.uuid)[:6]), face_roi)
+					face_roi = preprocess_image(face_roi)
+					
+					#predicting demographics
+					face_demographics = demographics_model.predict(face_roi)
+					age, gender, race = interpret_demographics_label(face_demographics[0][0], face_demographics[1][0], face_demographics[2][0])
+					
+					#Updating the demographics of the tracking object=
+					trackingObj.updateAge(age)
+					trackingObj.updateGender(gender)
+					trackingObj.updateRace(race)
 
-			#Increasing i if there is no matching face found
-			i+=1
+					#Removing the object so it is not updated again in the current frame
+					trackingObjsDemographics.remove(trackingObj)
+					continue
+
+				#Increasing i if there is no matching face found
+				i+=1
+
+	for rectangle in rectangles:
+		_ = cv2.rectangle(frame, rectangle[0], rectangle[1], rectangle[2], 2)
+		cv2.putText(frame, "ID: " + str(rectangle[3])[:5], (rectangle[0][0], rectangle[0][1]-10), cv2.FONT_HERSHEY_SIMPLEX, 1, rectangle[2], 2)
 
 	#TODO: We now need to update the database based on the demographics predictions that are coming in
 	#Santript, this is commented because addToDatabase is not finished/tested
+	out.write(frame)
 	databaseUpdate.addToDatabase(trackingObjs)
 
 def track():
