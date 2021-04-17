@@ -7,4 +7,5 @@ Single-Multiple-Custom-Object-Detection-and-Tracking/
 *.bkp
 *.h5
 *node_modules/
+*package-lock.json
 
