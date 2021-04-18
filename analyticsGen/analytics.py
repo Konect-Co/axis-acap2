@@ -48,8 +48,8 @@ def computeIntersectionality(recentRows):
         age_category = 0
        
         for i in range(1, len(age_categories)):
-            if (age_category >= age_categories[i]):
-                age_category = age_categories[i]
+            if (age >= age_categories[i]):
+                age_category = i
             else:
                 break
 
