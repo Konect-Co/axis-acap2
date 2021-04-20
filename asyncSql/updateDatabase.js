@@ -13,8 +13,9 @@ var con = mysql.createConnection({
 
 con.connect();
 jsonString = fs.readFileSync('./commands.json');
+
 app.get('/', (req, res) =>{
-  res.send("Hello");
+  res.send("Updated");
   var commands = JSON.parse(jsonString);
 
   for(var i = 0 ; i < Object.keys(commands).length ; i++){
