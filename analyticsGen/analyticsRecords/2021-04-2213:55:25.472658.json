@@ -1,5 +1,22 @@
 {
-  "numPeople": 20,
+  "numPeople": {
+    "numPeopleStartTime": "2021-04-17 13:24:42",
+    "numPeopleInterval": 0.1,
+    "numPeopleVal": [
+      19,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
   "intersectionality": [
     [
       [

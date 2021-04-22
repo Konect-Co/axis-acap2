@@ -1,4 +1,5 @@
 {
 	"name":"testVenue",
-	"frequency":"72"
+	"frequency":1000,
+	"numPeopleInterval":0.1
 }

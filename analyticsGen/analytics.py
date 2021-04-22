@@ -25,6 +25,7 @@ with open(databaseConfigFile, 'r') as f:
 
 #frequency with which updating occurs
 frequency = float(config["frequency"])
+numPeopleInterval = float(config["numPeopleInterval"])
 
 my_database = mysql.connector.connect(
     host=databaseHost,
@@ -33,6 +34,31 @@ my_database = mysql.connector.connect(
     database=database
 )
 cursor = my_database.cursor()
+
+def computeNumPeople(recentRows):
+    recentRows.sort(key=lambda row:row[1])
+    
+    numPeopleStartTime = recentRows[0][1]
+    endTime = recentRows[-1][1]
+    currTime = numPeopleStartTime
+
+    numPeopleVal = []
+    while (currTime < endTime):
+        currCount = 0
+        upperBound = currTime + datetime.timedelta(0,numPeopleInterval*60)
+        #search between currTime and upperBound
+        
+        while (len(recentRows) > 0 and recentRows[0][1] >= currTime and recentRows[0][1] < upperBound):
+            currCount += 1
+            recentRows = recentRows[1:]
+
+        if (not len(recentRows) >= 0):
+            break
+
+        numPeopleVal.append(currCount)
+        currTime = upperBound
+
+    return str(numPeopleStartTime), numPeopleInterval, numPeopleVal
 
 def computeIntersectionality(recentRows):
     #gender, race, age table indicating number of people in past specified amount of time
@@ -66,7 +92,12 @@ def genAnalytics():
     recentRows = cursor.fetchall()
     log.LOG_INFO("Obtained records from past " + str(frequency) + " hour(s)")
     
-    analytics["numPeople"] = len(recentRows)
+    numPeopleStartTime, numPeopleFrequency, numPeopleVal = computeNumPeople(recentRows)
+    analytics["numPeople"] = {}
+    analytics["numPeople"]["numPeopleStartTime"] = numPeopleStartTime
+    analytics["numPeople"]["numPeopleInterval"] = numPeopleInterval 
+    analytics["numPeople"]["numPeopleVal"] = numPeopleVal
+
     analytics["intersectionality"] = computeIntersectionality(recentRows).tolist()
     
     log.LOG_INFO("Finished computing analytics. Writing to output file.")
