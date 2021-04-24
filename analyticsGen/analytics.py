@@ -12,9 +12,9 @@ database = "spaspect"
 databaseConfigFile = "config.json"
 
 #lower_bound
-gender_categories = ["male", "female"]
+gender_categories = ["male", "female", None]
 age_categories = [0, 10, 20, 40, 65]
-race_categories = ["White", "Black", "Asian", "Indian", "Other"]
+race_categories = ["White", "Black", "Asian", "Indian", "Other", None]
 
 
 def getOutputFilename():
@@ -42,22 +42,52 @@ def computeNumPeople(recentRows):
     endTime = recentRows[-1][1]
     currTime = numPeopleStartTime
 
-    numPeopleVal = []
+    numPeopleTotal = []
+    numPeopleByGender = []
+    numPeopleByRace = []
+    numPeopleByAge = []
+
     while (currTime < endTime):
         currCount = 0
+        genderCount = [0, 0, 0]
+        raceCount = [0, 0, 0, 0, 0, 0]
+        ageCount = [0, 0, 0, 0, 0, 0]
         upperBound = currTime + datetime.timedelta(0,numPeopleInterval*60)
         #search between currTime and upperBound
-        
         while (len(recentRows) > 0 and recentRows[0][1] >= currTime and recentRows[0][1] < upperBound):
             currCount += 1
+            
+            raceCount[race_categories.index(recentRows[0][4])] += 1
+            genderCount[gender_categories.index(recentRows[0][5])] += 1
+            
+            agePred = recentRows[0][6]
+            age_category = -1
+            if (agePred is not None):
+                for i in range(1, len(age_categories)):
+                    if (agePred >= age_categories[i]):
+                        age_category = i
+                    else:
+                        break
+            ageCount[age_category] += 1
+
             recentRows = recentRows[1:]
 
         if (not len(recentRows) >= 0):
             break
 
-        numPeopleVal.append(currCount)
+        numPeopleTotal.append(currCount)
+        numPeopleByGender.append(genderCount)
+        numPeopleByRace.append(raceCount)
+        numPeopleByAge.append(ageCount)
+
         currTime = upperBound
 
+    numPeopleVal = {
+        "numPeopleTotal": numPeopleTotal,
+        "numPeopleByGender": numPeopleByGender,
+        "numPeopleByRace": numPeopleByRace,
+        "numPeopleByAge": numPeopleByAge
+    }
     return str(numPeopleStartTime), numPeopleInterval, numPeopleVal
 
 def computeIntersectionality(recentRows):
@@ -95,7 +125,12 @@ def genAnalytics():
     numPeopleStartTime, numPeopleFrequency, numPeopleVal = computeNumPeople(recentRows)
     analytics["numPeople"] = {}
     analytics["numPeople"]["numPeopleStartTime"] = numPeopleStartTime
-    analytics["numPeople"]["numPeopleInterval"] = numPeopleInterval 
+    analytics["numPeople"]["numPeopleInterval"] = numPeopleInterval
+    analytics["numPeople"]["categories"] = {
+        "genderCategories": gender_categories,
+        "raceCategories": race_categories,
+        "ageCategories": age_categories
+    }
     analytics["numPeople"]["numPeopleVal"] = numPeopleVal
 
     analytics["intersectionality"] = computeIntersectionality(recentRows).tolist()
