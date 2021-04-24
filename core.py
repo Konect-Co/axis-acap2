@@ -221,7 +221,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 
 def track():
 	scaling = 6
-	name = "video"
+	name = "Output"
 	fromLive = False
 	writeOrig = False
 	verbose = False
@@ -254,7 +254,7 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 8):
+		if (frame_no > 50):
 			break
 
 		ret, frame = cap.read()
