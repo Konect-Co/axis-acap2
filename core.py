@@ -42,11 +42,11 @@ def preprocess_image(image_orig):
 	return image
 
 def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, verbose=False):
-	detection_threshold=0.3
-	score_add_threshold = 0.3
+	detection_threshold=0.5
+	score_add_threshold = 0.5
 
-	iou_threshold = 0.3
-	face_ioa_threshold = 0.95
+	iou_threshold = 0.08
+	face_ioa_threshold = 0.90
 	deleteTrackedObjs = []
 	IOU_vals = {}
 
@@ -237,7 +237,7 @@ def track():
 	if fromLive:
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
-		cap = cv2.VideoCapture(name + "_orig.mp4")
+		cap = cv2.VideoCapture(name + "_orig2.mp4")
 
 	#preparing the video out writer
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -254,7 +254,7 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 50):
+		if (frame_no > 400):
 			break
 
 		ret, frame = cap.read()

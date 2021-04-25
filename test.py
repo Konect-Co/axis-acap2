@@ -24,7 +24,7 @@ def preprocess_image(image_orig):
 
 
 demographicsDetector = load_model("KonectDemographics.h5")
-img = cv2.imread("boy5.png")
+img = cv2.imread("pic2.png")
 image = preprocess_image(img)
 prediction = demographicsDetector.predict(image)
 age, gender, race = interpret_demographics_label(prediction[0][0], prediction[1][0], prediction[2][0])
