@@ -53,27 +53,26 @@ def computeNumPeople(recentRows):
         raceCount = [0, 0, 0, 0, 0, 0]
         ageCount = [0, 0, 0, 0, 0, 0]
         upperBound = currTime + datetime.timedelta(0,numPeopleInterval*60)
-        #search between currTime and upperBound
-        while (len(recentRows) > 0 and recentRows[0][1] >= currTime and recentRows[0][1] < upperBound):
-            currCount += 1
-            
-            raceCount[race_categories.index(recentRows[0][4])] += 1
-            genderCount[gender_categories.index(recentRows[0][5])] += 1
-            
-            agePred = recentRows[0][6]
-            age_category = -1
-            if (agePred is not None):
-                for i in range(1, len(age_categories)):
-                    if (agePred >= age_categories[i]):
-                        age_category = i
-                    else:
-                        break
-            ageCount[age_category] += 1
 
-            recentRows = recentRows[1:]
+        for recentRow in recentRows:
+            entryTime = recentRow[1]
+            exitTime = recentRow[2]
 
-        if (not len(recentRows) >= 0):
-            break
+            if (entryTime < upperBound and exitTime > currTime):
+                currCount += 1
+
+                raceCount[race_categories.index(recentRow[4])] += 1
+                genderCount[gender_categories.index(recentRow[5])] += 1
+                
+                agePred = recentRow[6]
+                age_category = -1
+                if (agePred is not None):
+                    for i in range(1, len(age_categories)):
+                        if (agePred >= age_categories[i]):
+                            age_category = i
+                        else:
+                            break
+                ageCount[age_category] += 1
 
         numPeopleTotal.append(currCount)
         numPeopleByGender.append(genderCount)
