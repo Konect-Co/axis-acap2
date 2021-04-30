@@ -11,6 +11,7 @@ import log
 import utils
 import databaseUpdate
 import readUtils
+import requests
 
 face_detector = MTCNN()
 demographics_model = load_model('KonectDemographics.h5')
@@ -44,6 +45,7 @@ def preprocess_image(image_orig):
 def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, verbose=False):
 	detection_threshold=0.5
 	score_add_threshold = 0.5
+	url = 'http://localhost:3000'
 
 	iou_threshold = 0.08
 	face_ioa_threshold = 0.90
@@ -150,7 +152,8 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 		#removing every TrackedObject in deleteTrackedObjs
 		for trackedObjectToDelete in deleteTrackedObjs:
 			deletedObjects.append(trackedObjectToDelete)
-			databaseUpdate.deleteTrackingObject(trackedObjectToDelete)
+			data = databaseUpdate.deleteTrackingObject(trackedObjectToDelete)
+			x = requests.post(url, data=data)
 			trackingObjs.remove(trackedObjectToDelete)
 
 		#adding new TrackedObject for every bounding box index in newTrackedObj
@@ -221,6 +224,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 
 def track():
 	scaling = 6
+	url = 'http://localhost:3000'
 	name = "Output"
 	fromLive = False
 	writeOrig = False
@@ -254,7 +258,7 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 400):
+		if (frame_no > 100):
 			break
 
 		ret, frame = cap.read()
@@ -273,7 +277,8 @@ def track():
 	delete = False
 	if delete:
 		for trackingObj in trackingObjs:
-			databaseUpdate.deleteTrackingObject(trackingObj)
+			data = databaseUpdate.deleteTrackingObject(trackingObj)
+			x = requests.post(url, data=data)
 	else:
 		log.LOG_INFO("To clear table, execute following statements:\n***")
 		for trackedObject in trackingObjs:

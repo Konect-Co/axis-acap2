@@ -5,6 +5,8 @@ import datetime
 import cv2
 #import js2py
 import os
+import requests
+import json
 
 #from Naked.toolshed.shell import execute_js, muterun_js
 
@@ -69,27 +71,57 @@ def newTrackingObject(trackedObject):
 	query_updateMaster = "INSERT INTO " + masterTable + " " + keys_str + " VALUES " + values_str + ";"
 	sendData["query_updateMaster"] = query_updateMaster
 
-	with open("commands.json", "w") as write_file:
-		json.dump(sendData, write_file)
+	return sendData
+
+def selectCommands(trackedObject):
+	select_data = {}
+
+	id = str(trackedObject.uuid)[:8]
+	countQuery = "SELECT count(*) FROM cameraRecords WHERE tracking_id = \'" + id + "\'"
+	select_data["countQuery"] = countQuery
+
+	return select_data
+
 
 def main():
+
+	url = 'http://localhost:3000'
+
 	obj1 = TrackedObject(cv2.TrackerCSRT_create(), [129, 345, 234, 908])
 	obj2 = TrackedObject(cv2.TrackerCSRT_create())
-	obj3 = TrackedObject(cv2.TrackerCSRT_create(), [34, 21, 34, 44])
-	trackedObjects = [obj1, obj2, obj3]
+	obj3 = TrackedObject(cv2.TrackerCSRT_create())
+	obj4 = TrackedObject(cv2.TrackerCSRT_create())
+	obj5 = TrackedObject(cv2.TrackerCSRT_create())
+	obj6 = TrackedObject(cv2.TrackerCSRT_create())
+	obj7 = TrackedObject(cv2.TrackerCSRT_create())
+	obj8 = TrackedObject(cv2.TrackerCSRT_create())
+	obj9 = TrackedObject(cv2.TrackerCSRT_create(), [34, 21, 34, 44])
+	obj10 = TrackedObject(cv2.TrackerCSRT_create(), [34, 21, 34, 44])
+
+	trackedObjects = [obj1, obj2, obj3, obj4, obj5, obj6, obj7, obj8, obj9, obj10]
 
 	i = 0
-	num = 3
-	os.system("sudo node updateDatabase.js")
+	num = 10
 
 	while i < num:
 		print(i)
-		newTrackingObject(trackedObjects[i])
-		#success = execute_js('updateDatabase.js')
+		data = selectCommands(trackedObjects[i])
+		x = requests.post(url, data=data)
+		selectRes = json.loads(x.text)
+		print(selectRes[0]["count(*)"])
 		i += 1
 
+	#print(x.text)
 
 	print("[INFO] Sent")
+
+	print("To clear table, execute following statements:\n***")
+	for trackedObject in trackedObjects:
+		id = str(trackedObject.uuid)[:8]
+		query_delete_record = "DELETE FROM cameraRecords WHERE tracking_id=\'" + id + "\'" + ";"
+		query_delete_table = "DROP TABLE IF EXISTS obj_" + id + ";"
+		print(query_delete_record)
+		print(query_delete_table)
 
 if __name__ == '__main__':
 	main()

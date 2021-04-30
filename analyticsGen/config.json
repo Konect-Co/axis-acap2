@@ -1,5 +1,5 @@
 {
-	"name":"testVenue",
-	"frequency":1000,
+	"name":"Camera-Dublin",
+	"frequency":50,
 	"numPeopleInterval":0.1
 }

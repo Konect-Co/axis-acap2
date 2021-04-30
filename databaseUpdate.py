@@ -1,15 +1,6 @@
-import mysql.connector
 import log
-
-my_database = mysql.connector.connect(
-    host="18.188.84.0",
-    user="ravit",
-    password="mypass123",
-    database="spaspect"
-)
-mycursor = my_database.cursor(buffered=True)
-
-log.LOG_INFO("Connected to:", my_database.get_server_info())
+import requests
+import json
 
 masterTable = "cameraRecords"
 
@@ -48,6 +39,7 @@ def getUpdateKeysValueStr(fields):
     return result
 
 def deleteTrackingObject(trackedObject):
+    delete_data = {}
     id = str(trackedObject.uuid)[:8]
 
     """
@@ -56,54 +48,55 @@ def deleteTrackingObject(trackedObject):
     """
 
     query_alter_activity = "UPDATE cameraRecords SET active=\'No\' WHERE tracking_id=\'" + id + "\'"
-    mycursor.execute(query_alter_activity)
+    delete_data["query_alter_activity"] = query_alter_activity
 
     query_delete_table = "DROP TABLE IF EXISTS obj_" + id
-    mycursor.execute(query_delete_table)
+    delete_data["query_delete_table"] = query_delete_table
     
-    my_database.commit()
+    return delete_data
 
 def updateTrackingObject(trackedObject):
+    update_data = {}
+
     id = str(trackedObject.uuid)[:8]
 
     fields = {"end_time":trackedObject.latestUpdate, "age":trackedObject.age, "gender": trackedObject.gender, "race": trackedObject.race}
     updateFieldsStr = getUpdateKeysValueStr(fields)
     query_update_record = "UPDATE cameraRecords SET " + updateFieldsStr + " WHERE tracking_id=\'" + id + "\'"
-    mycursor.execute(query_update_record)
+    update_data["query_update_record"] = query_update_record
 
     #Inserting into the tracked object table
     fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3]}
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateTable = "INSERT INTO obj_" + id + " " + keys_str + " VALUES " + values_str
     log.LOG_INFO("Update info is " + query_updateTable)
-    mycursor.execute(query_updateTable)
+    update_data["query_updateTable"] = query_updateTable
 
-    my_database.commit()
+    return update_data
 
 def newTrackingObject(trackedObject):
+    new_data = {}
 
     id = str(trackedObject.uuid)[:8]
 
     #Query to make a new table corresponding to the current object
     query_makeTable = "CREATE TABLE obj_" + id + " (time TIMESTAMP, pixel_x int, pixel_y int, pixel_w int, pixel_h int, latitude float(25), longitude float(25));"
-    mycursor.execute(query_makeTable)
+    new_data["query_makeTable"] = query_makeTable
 
     #Inserting into the newly created object
     fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3]}
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateTable = "INSERT INTO obj_" + id + " " + keys_str + " VALUES " + values_str
     log.LOG_INFO("Update info is " + query_updateTable)
-    mycursor.execute(query_updateTable)
+    new_data["query_updateTable"] = query_updateTable
     
     #Inserting into the master record with the tracked object
     fields = {'tracking_id': id, 'start_time': trackedObject.latestUpdate, 'end_time': trackedObject.latestUpdate, 'active':'Yes', 'race': trackedObject.race, 'age': trackedObject.age, 'gender': trackedObject.gender}
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateMaster = "INSERT INTO " + masterTable + " " + keys_str + " VALUES " + values_str;
-    mycursor.execute(query_updateMaster)
+    new_data["query_updateMaster"] = query_updateMaster
 
-    my_database.commit()
-
-    log.LOG_INFO(mycursor.rowcount, "record(s) affected")
+    return new_data
 
 """
 trackedObjects is a list of TrackedObject instances.
@@ -120,18 +113,23 @@ def addToDatabase(trackedObjects):
         if curr_obj not present in the database:
             add new entry to database
     """
+    url = 'http://localhost:3000'
+    main_data = {}
+
     for trackedObject in trackedObjects:
         id = str(trackedObject.uuid)[:8]
         countQuery = "SELECT count(*) FROM cameraRecords WHERE tracking_id = \'" + id + "\'"
-        mycursor.execute(countQuery)
+        main_data["countQuery"] = countQuery
 
-        countResultRaw = mycursor.fetchall()
-        countResult = countResultRaw[0][0]
-        my_database.commit()
+        x = requests.post(url, data=main_data)
+        selectRes = json.loads(x.text)
+        countResult = selectRes[0]["count(*)"]
+
         if countResult == 0:
-            newTrackingObject(trackedObject)
+            data = newTrackingObject(trackedObject)
+            x = requests.post(url, data=data)
         elif countResult == 1:
-            updateTrackingObject(trackedObject)
+            data = updateTrackingObject(trackedObject)
+            x = requests.post(url, data=data)
         else:
             log.LOG_ERR("Not expecting countResult to have value " + str(countResult))
-
