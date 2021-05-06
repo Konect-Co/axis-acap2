@@ -2,6 +2,7 @@ from cv_model import pred
 from mtcnn.mtcnn import MTCNN
 from tensorflow.keras.models import load_model
 from TrackedObject import TrackedObject
+from PixelMapper import PixelMapper
 
 import time
 import numpy as np
@@ -12,9 +13,28 @@ import utils
 import databaseUpdate
 import readUtils
 import requests
+import math
+import json
 
 face_detector = MTCNN()
 demographics_model = load_model('KonectDemographics.h5')
+
+with open("heatmap_config.json", "r") as read_file:
+	heatmap_data = json.load(read_file)
+	read_file.close()
+
+full_heatmap = np.zeros((heatmap_data["heatmap_width"], heatmap_data["heatmap_height"]))
+print("Original heatmap: ")
+print(full_heatmap)
+
+def updateHeatMap(pixelCoords, lonlat_array, lonlat_origin, updatePixel):
+	pm = PixelMapper(pixelCoords, lonlat_array, lonlat_origin)
+	heatmap_pixel = pm.pixel_to_lonlat(updatePixel)
+	log.LOG_INFO(heatmap_pixel)
+	heatmap_x = math.floor(heatmap_pixel[0][0])
+	heatmap_y = math.floor(heatmap_pixel[0][1])
+
+	full_heatmap[heatmap_x][heatmap_y] += 1
 
 def xywh2xyxy(xywh):
 	return [xywh[0], xywh[1], xywh[0]+xywh[2], xywh[1]+xywh[3]]
@@ -165,6 +185,12 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 			trackerObj.tracker.init(frame, tuple(bbox))
 			trackingObjs.append(trackerObj)
 
+		for trackedObj in trackingObjs:
+			newPixelCoords = [trackedObj.getBbox()[1] + trackedObj.getBbox()[3], trackedObj.getBbox()[0] + trackedObj.getBbox()[2]/2]
+			updateHeatMap(heatmap_data["pixel_coords"], heatmap_data["target_coords"], heatmap_data["lonlat_orig"], newPixelCoords)
+
+		print(full_heatmap)
+
 	#TODO: Santript, I wrote the demographics updating code here, but commented it since untested
 	#Maybe we can go through it together and make it work
 	
@@ -258,7 +284,7 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 100):
+		if (frame_no > 10):
 			break
 
 		ret, frame = cap.read()
