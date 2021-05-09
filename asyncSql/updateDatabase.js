@@ -22,20 +22,12 @@ app.post('/', urlencodedParser, (request, response) => {
 
   //var jsonString = fs.readFileSync('./commands.json');
   var commands = JSON.parse(JSON.stringify(request.body));
-  if(commands["countQuery"] != undefined){
-    //console.log("Got count request");
-    con.query(commands["countQuery"], (err, result, fields) => {
-      if (err) throw err;
-      response.send(JSON.parse(JSON.stringify(result)));
-    });
+
+  response.send("updated");
+  for(var i = 0 ; i < Object.keys(commands).length ; i++){
+    con.query(commands[Object.keys(commands)[i]], (err, result) => {});
+    
   }
-  else{
-    response.send("updated");
-    for(var i = 0 ; i < Object.keys(commands).length ; i++){
-      con.query(commands[Object.keys(commands)[i]], (err, result) => {});
-    }
-  }
-  
 });
 
 var port = 3000;
