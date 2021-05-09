@@ -9,10 +9,9 @@
 		-6.2635
 	],
 	"heatMapDimension": [
-		10,
-		10
-	]
-}
+		25,
+		25
+	],
 	"name":"Camera-Dublin",
 	"frequency":50,
 	"numPeopleInterval":0.1

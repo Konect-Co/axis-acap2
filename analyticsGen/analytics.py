@@ -127,7 +127,7 @@ def computeHeatMap (recentRows, rowInfo):
     for row in recentRows:
         tracking_id, start_time, end_time, active, race, gender, age = row
         for tracking_elem in rowInfo[tracking_id]:
-            _, _, _, _, _, _, _, lat_val, lon_val = tracking_elem
+            _, _, _, _, _, lat_val, lon_val = tracking_elem
             #TODO: Generate the heatmap grid values from lat and lon
             heatmap_x, heatmap_y = lonlat2Grid(lat_val, lon_val, config["lonlatCorners"])
             #heatmap_x = 0, heatmap_y = 0
@@ -170,9 +170,6 @@ def genAnalytics():
     analytics["heatMap"]["value"] = computeHeatMap(recentRows, rowInfo).tolist()
     
     log.LOG_INFO("Finished computing analytics. Writing to output file.")
-
-    #TODO: Remove later on
-    outputFile = "./analyticsRecords/latest.json"
     with open(outputFile, 'w') as f:
         json.dump(analytics, f, indent=2)
         foo = 1
