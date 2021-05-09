@@ -50,8 +50,8 @@ def deleteTrackingObject(trackedObject):
     query_alter_activity = "UPDATE cameraRecords SET active=\'No\' WHERE tracking_id=\'" + id + "\'"
     delete_data["query_alter_activity"] = query_alter_activity
 
-    query_delete_table = "DROP TABLE IF EXISTS obj_" + id
-    delete_data["query_delete_table"] = query_delete_table
+    #query_delete_table = "DROP TABLE IF EXISTS obj_" + id
+    #delete_data["query_delete_table"] = query_delete_table
     
     return delete_data
 
@@ -66,7 +66,8 @@ def updateTrackingObject(trackedObject):
     update_data["query_update_record"] = query_update_record
 
     #Inserting into the tracked object table
-    fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3], 'lat': trackedObject.lonlat[0], 'lon': trackedObject.lonlat[1]}
+    print("lonlat:", trackedObject.getLonLat())
+    fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3], 'latitude': trackedObject.getLonLat()[0], 'longitude': trackedObject.getLonLat()[1]}
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateTable = "INSERT INTO obj_" + id + " " + keys_str + " VALUES " + values_str
     log.LOG_INFO("Update info is " + query_updateTable)
@@ -80,11 +81,11 @@ def newTrackingObject(trackedObject):
     id = str(trackedObject.uuid)[:8]
 
     #Query to make a new table corresponding to the current object
-    query_makeTable = "CREATE TABLE obj_" + id + " (time TIMESTAMP, pixel_x int, pixel_y int, pixel_w int, pixel_h int, latitude float(25), longitude float(25), lat float(10), lon float(10));"
+    query_makeTable = "CREATE TABLE obj_" + id + " (time TIMESTAMP, pixel_x int, pixel_y int, pixel_w int, pixel_h int, latitude float(25), longitude float(25));"
     new_data["query_makeTable"] = query_makeTable
 
     #Inserting into the newly created object
-    fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3], 'lat': trackedObject.lonlat[0], 'lon': trackedObject.lonlat[1]}
+    fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3], 'latitude': trackedObject.getLonLat()[0], 'longitude': trackedObject.getLonLat()[1]}
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateTable = "INSERT INTO obj_" + id + " " + keys_str + " VALUES " + values_str
     log.LOG_INFO("Update info is " + query_updateTable)
@@ -119,18 +120,11 @@ def addToDatabase(trackedObjects):
 
     for trackedObject in trackedObjects:
         id = str(trackedObject.uuid)[:8]
-        countQuery = "SELECT count(*) FROM cameraRecords WHERE tracking_id = \'" + id + "\'"
-        main_data["countQuery"] = countQuery
 
-        x = requests.post(url, data=main_data)
-        selectRes = json.loads(x.text)
-        countResult = selectRes[0]["count(*)"]
-
-        if countResult == 0:
+        if trackedObject.newObject:
             data = newTrackingObject(trackedObject)
             x = requests.post(url, data=data)
-        elif countResult == 1:
+            trackedObject.newObject = False
+        else:
             data = updateTrackingObject(trackedObject)
             x = requests.post(url, data=data)
-        else:
-            log.LOG_ERR("Not expecting countResult to have value " + str(countResult))

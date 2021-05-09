@@ -23,21 +23,7 @@ with open("heatmap_config.json", "r") as read_file:
 	heatmap_data = json.load(read_file)
 	read_file.close()
 
-#full_heatmap = np.zeros((heatmap_data["heatmap_width"], heatmap_data["heatmap_height"]))
-pm = PixelMapper(heatmap_data["pixel_coords"], heatmap_data["lonlat_coords"], heatmap_data["lonlat_target_coords"], heatmap_data["lonlat_center"])
-
-# def updateHeatMap(pixelCoords, lonlat_array, updatePixel, lonlat_corners, lonlat_center):
-# 	pm = PixelMapper(pixelCoords, lonlat_array, lonlat_corners, lonlat_center)
-# 	lonlat_coords = pm.pixel_to_lonlat(updatePixel)
-# 	print("Lonlat_coordinates:", lonlat_coords)
-# 	heatmap_grid = pm.lonlatTarget_to_heatmapCoords(lonlat_coords)
-# 	#log.LOG_INFO(heatmap_pixel)
-# 	print("heatmap_grid:", heatmap_grid)
-
-# 	heatmap_x = math.floor(heatmap_grid[0][0])
-# 	heatmap_y = math.floor(heatmap_grid[0][1])
-
-# 	full_heatmap[heatmap_x][heatmap_y] += 1
+pm = PixelMapper(heatmap_data["pixel_coords"], heatmap_data["lonlat_coords"], heatmap_data["lonlat_center"])
 
 def xywh2xyxy(xywh):
 	return [xywh[0], xywh[1], xywh[0]+xywh[2], xywh[1]+xywh[3]]
@@ -50,8 +36,8 @@ def interpret_demographics_label(age_label, gender_label, race_label):
 	races = ["White", "Black", "Asian", "Indian", "Other"]
 	age = int(age_label[0]*116)
 	gender = "male" if gender_label[0]<0.5 else "female"
-	print("age_label:", age_label)
-	print("Age:",age)
+	#print("age_label:", age_label)
+	#print("Age:",age)
 	#print(races, race_label.flatten())
 	#print(gender_label[0])
 	race = races[np.argmax(race_label.flatten())]
@@ -122,15 +108,14 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 		#each (key, value) of the dictionary is (<uuid of tracked object to_curr>, <dictionary of IoUs>)
 		#each (key, value) of <dictionary of IoUs> is (<index of bounding box bb_curr>, <IoU of to_curr.box and bb_curr>)
 		
-		log.LOG_INFO("New tracked objects: ", newTrackedObjs)
-		log.LOG_INFO("Boxes: ", output['boxes'])
+		#log.LOG_INFO("New tracked objects: ", newTrackedObjs)
+		#log.LOG_INFO("Boxes: ", output['boxes'])
 		for trackedObj in trackingObjs:
 			IOU_vals[trackedObj.uuid] = {i:utils.computeIOU(list(trackedObj.bbox), output['boxes'][i]) for i in newTrackedObjs} if newTrackedObjs else None
-		log.LOG_INFO(IOU_vals)
+		#log.LOG_INFO(IOU_vals)
 
 		#setting up list of newTrackedObjs to add (starts off full, and boxes that match existing TrackedObjects are gradually removed)
 		#setting up list of deleteTrackedObjs (starts off empty, trackedObjects with no corresponding bounding box are added)
-		#newTrackedObjs = list(range(<index of detections with score > score_add_threshold>) #TODO
 
 		deleteTrackedObjs = []
 		currTrackedObj = None
@@ -150,11 +135,11 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 						maxIoU = IOU_vals[currTrackedObjUUID][index]
 						maxBoxIndex = index
 
-				log.LOG_INFO("UUID: ",currTrackedObj.uuid)
-				log.LOG_INFO("Bounding box: ", currTrackedObj.bbox)
-				log.LOG_INFO("Maximum IOU: ", maxIoU)
-				log.LOG_INFO("Max box index: ", maxBoxIndex)
-				log.LOG_INFO("New tracked objects: ", newTrackedObjs)
+				#log.LOG_INFO("UUID: ",currTrackedObj.uuid)
+				#log.LOG_INFO("Bounding box: ", currTrackedObj.bbox)
+				#log.LOG_INFO("Maximum IOU: ", maxIoU)
+				#log.LOG_INFO("Max box index: ", maxBoxIndex)
+				#log.LOG_INFO("New tracked objects: ", newTrackedObjs)
 
 				#We have a match between currTrackedObject and maxBox, and can update the box value
 				if maxIoU > iou_threshold:
@@ -162,7 +147,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 					#convert maxBox to proper format
 					currTrackedObj.updateBox(maxBox, pm)
 
-					log.LOG_INFO(IOU_vals)
+					#log.LOG_INFO(IOU_vals)
 					for uuid in list(IOU_vals.keys()):
 						del IOU_vals[uuid][maxBoxIndex]
 						
@@ -181,7 +166,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 
 		#adding new TrackedObject for every bounding box index in newTrackedObj
 		for newTrackedObj in newTrackedObjs:
-			log.LOG_INFO("New Tracked Object: ", newTrackedObj)
+			#log.LOG_INFO("New Tracked Object: ", newTrackedObj)
 			bbox = output['boxes'][newTrackedObj]
 			trackerObj = TrackedObject(cv2.TrackerCSRT_create())
 			trackerObj.updateBox(bbox, pm)
@@ -287,8 +272,8 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 20):
-			break
+		if (frame_no > 500):
+		 	break
 
 		ret, frame = cap.read()
 		if not ret:

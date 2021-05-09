@@ -19,15 +19,20 @@ class TrackedObject:
         self.age = None
         self.gender = None
         self.race = None
+        self.newObject = True
 
     def getBbox(self):
         return self.bbox
 
+    def getLonLat(self):
+        return self.lonlat
+
     def updateBox(self, bbox, pm, time=None):
         self.bbox = bbox
         self.latestUpdate = time if time is not None else datetime.datetime.now()
-        updatePixel = [bbox[1] + bbox[3], bbox[0] + bbox[2]/2]
-        self.lonlat = pm.pixel_to_lonlat(updatePixel)[0]
+        updatePixel = [bbox[0] + bbox[2]/2, bbox[1] + bbox[3]]
+        self.lonlat = pm.pixel_to_lonlat(updatePixel)
+        #print(updatePixel, " maps to ", self.lonlat)
 
     def updateRace(self, race):
         self.race = race
