@@ -23,18 +23,21 @@ with open("heatmap_config.json", "r") as read_file:
 	heatmap_data = json.load(read_file)
 	read_file.close()
 
-full_heatmap = np.zeros((heatmap_data["heatmap_width"], heatmap_data["heatmap_height"]))
-print("Original heatmap: ")
-print(full_heatmap)
+#full_heatmap = np.zeros((heatmap_data["heatmap_width"], heatmap_data["heatmap_height"]))
+pm = PixelMapper(heatmap_data["pixel_coords"], heatmap_data["lonlat_coords"], heatmap_data["lonlat_target_coords"], heatmap_data["lonlat_center"])
 
-def updateHeatMap(pixelCoords, lonlat_array, lonlat_origin, updatePixel):
-	pm = PixelMapper(pixelCoords, lonlat_array, lonlat_origin)
-	heatmap_pixel = pm.pixel_to_lonlat(updatePixel)
-	log.LOG_INFO(heatmap_pixel)
-	heatmap_x = math.floor(heatmap_pixel[0][0])
-	heatmap_y = math.floor(heatmap_pixel[0][1])
+# def updateHeatMap(pixelCoords, lonlat_array, updatePixel, lonlat_corners, lonlat_center):
+# 	pm = PixelMapper(pixelCoords, lonlat_array, lonlat_corners, lonlat_center)
+# 	lonlat_coords = pm.pixel_to_lonlat(updatePixel)
+# 	print("Lonlat_coordinates:", lonlat_coords)
+# 	heatmap_grid = pm.lonlatTarget_to_heatmapCoords(lonlat_coords)
+# 	#log.LOG_INFO(heatmap_pixel)
+# 	print("heatmap_grid:", heatmap_grid)
 
-	full_heatmap[heatmap_x][heatmap_y] += 1
+# 	heatmap_x = math.floor(heatmap_grid[0][0])
+# 	heatmap_y = math.floor(heatmap_grid[0][1])
+
+# 	full_heatmap[heatmap_x][heatmap_y] += 1
 
 def xywh2xyxy(xywh):
 	return [xywh[0], xywh[1], xywh[0]+xywh[2], xywh[1]+xywh[3]]
@@ -82,7 +85,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 			log.LOG_INFO("Box: ", box)
 		if success:
 			trackerObj.streakUntracked = 0
-			trackerObj.updateBox(box)
+			trackerObj.updateBox(box, pm)
 			(x, y, w, h) = [int(v) for v in box]
 			#_ = cv2.rectangle(frame, (x, y), (x+w, y+h), trackerObj.color, 2)
 			rectangles.append(((x,y), (x+w, y+h), trackerObj.color, trackerObj.uuid))
@@ -157,7 +160,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 				if maxIoU > iou_threshold:
 					maxBox = output['boxes'][maxBoxIndex]
 					#convert maxBox to proper format
-					currTrackedObj.updateBox(maxBox)
+					currTrackedObj.updateBox(maxBox, pm)
 
 					log.LOG_INFO(IOU_vals)
 					for uuid in list(IOU_vals.keys()):
@@ -181,15 +184,15 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 			log.LOG_INFO("New Tracked Object: ", newTrackedObj)
 			bbox = output['boxes'][newTrackedObj]
 			trackerObj = TrackedObject(cv2.TrackerCSRT_create())
-			trackerObj.updateBox(bbox)
+			trackerObj.updateBox(bbox, pm)
 			trackerObj.tracker.init(frame, tuple(bbox))
 			trackingObjs.append(trackerObj)
 
-		for trackedObj in trackingObjs:
-			newPixelCoords = [trackedObj.getBbox()[1] + trackedObj.getBbox()[3], trackedObj.getBbox()[0] + trackedObj.getBbox()[2]/2]
-			updateHeatMap(heatmap_data["pixel_coords"], heatmap_data["target_coords"], heatmap_data["lonlat_orig"], newPixelCoords)
+		# for trackedObj in trackingObjs:
+		# 	newPixelCoords = [trackedObj.getBbox()[1] + trackedObj.getBbox()[3], trackedObj.getBbox()[0] + trackedObj.getBbox()[2]/2]
+		# 	updateHeatMap(heatmap_data["pixel_coords"], heatmap_data["lonlat_coords"], newPixelCoords, heatmap_data["lonlat_target_coords"], heatmap_data["lonlat_center"])
 
-		print(full_heatmap)
+		#print(full_heatmap)
 
 	#TODO: Santript, I wrote the demographics updating code here, but commented it since untested
 	#Maybe we can go through it together and make it work
@@ -284,7 +287,7 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 10):
+		if (frame_no > 20):
 			break
 
 		ret, frame = cap.read()

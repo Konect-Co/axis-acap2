@@ -8,24 +8,40 @@ Create an object for converting pixels to geographic coordinates,
 using four points with known locations which form a quadrilteral in both planes
 """
 class PixelMapper(object):
-	def __init__(self, pixel_array, lonlat_array, lonlat_origin):
+	def __init__(self, pixel_array, lonlat_array, lonlat_corners, lonlat_center):
 		#converting pixel and lonlat array to numpy array
 		pixel_array = np.array(pixel_array)
 		lonlat_array = np.array(lonlat_array)
+		lonlat_corners = np.array(lonlat_corners)
+		heatmap_corners = np.array([[0,0], [0,100], [100,0], [100,100]])
 
 		#identifying shape of arrays
 		assert pixel_array.shape==(4,2), "Need (4,2) input array"
 		assert lonlat_array.shape==(4,2), "Need (4,2) input array"
 
 		#Calculates a perspective transform from four pairs of the corresponding points
-		self.M = cv2.getPerspectiveTransform(np.float32(pixel_array),np.float32(lonlat_array))
-		self.invM = cv2.getPerspectiveTransform(np.float32(lonlat_array),np.float32(pixel_array))
-		
+		self.lonlat_center = np.array(lonlat_center)
+		self.M = cv2.getPerspectiveTransform(np.float32(pixel_array),np.float32(lonlat_array-self.lonlat_center))
+		#self.invM = cv2.getPerspectiveTransform(np.float32(lonlat_array),np.float32(pixel_array))
+		print("mgrid-sourcecalib:", np.float32(lonlat_corners)-np.float32(lonlat_center))
+		print("mgrid-destcalib:", np.float32(heatmap_corners))
+		self.M_grid = cv2.getPerspectiveTransform(np.float32(lonlat_corners)-np.float32(lonlat_center), np.float32(heatmap_corners))
+		print("mgrid:", self.M_grid)
+
 		#defining a few variables needed for conversions
-		self.lonlat_origin = lonlat_origin
-		self.lon_const = 40075000 * math.cos(lonlat_origin[0]*math.pi/180) / 360
+		#self.lonlat_origin = lonlat_origin
+		#self.lon_const = 40075000 * math.cos(lonlat_origin[0]*math.pi/180) / 360
 		self.lat_const = 111320
         
+
+	def lonlatTarget_to_heatmapCoords(self, lonlat_target):
+		lonlat_target = (np.array(lonlat_target)-np.array(self.lonlat_center)).reshape(1,2)
+		print("lonlat_target: ", lonlat_target)
+		lonlat_target = np.concatenate([lonlat_target, np.ones((lonlat_target.shape[0],1))], axis=1)
+		heatmapCoords = np.dot(self.M_grid, np.array(lonlat_target).T)
+		print("lonlatTarget_to_heatmapCoords output:", (heatmapCoords[:2,:]/heatmapCoords[2,:]).T.tolist())
+		return (heatmapCoords[:2,:]/heatmapCoords[2,:]).T.tolist()
+
 	def pixel_to_lonlat(self, pixel):
 		"""
 		Convert a set of pixel coordinates to lon-lat coordinates
@@ -33,14 +49,16 @@ class PixelMapper(object):
 		#checking if pixel is of type np.ndarray and alters shape if not
 		if type(pixel) != np.ndarray:
 			pixel = np.array(pixel).reshape(1,2)
-		assert pixel.shape[1]==2, "Need (N,2) input array" 
+		assert pixel.shape[1]==2, "Need (N,2) input array"
 		#Joining the sequence of arrays along an existing axis
 		pixel = np.concatenate([pixel, np.ones((pixel.shape[0],1))], axis=1)
 		#calculating dot product of M and pixel.T, which is the lonlat coordinates
 		lonlat = np.dot(self.M,pixel.T)
 
 		#returning lonlat coordinates
-		return (lonlat[:2,:]/lonlat[2,:]).T.tolist()
+		print("lonlat matrix:", lonlat)
+		print("Lonlat offset:",(lonlat[:2,:]/lonlat[2,:]).T)
+		return ((lonlat[:2,:]/lonlat[2,:]).T+np.array(self.lonlat_center)).tolist()
     
 	def lonlat_to_pixel(self, lonlat):
 		"""
@@ -50,6 +68,7 @@ class PixelMapper(object):
 		if type(lonlat) != np.ndarray:
 			lonlat = np.array(lonlat).reshape(1,2)
 		assert lonlat.shape[1]==2, "Need (N,2) input array" 
+		lonlat-=np.array(self.lonlat_center)
 		#Joining the sequence of arrays along an existing axis
 		lonlat = np.concatenate([lonlat, np.ones((lonlat.shape[0],1))], axis=1)
 		#calculating dot product of invM and lonlat.T, which are the pixel coordinates

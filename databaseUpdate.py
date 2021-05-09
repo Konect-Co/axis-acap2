@@ -66,7 +66,7 @@ def updateTrackingObject(trackedObject):
     update_data["query_update_record"] = query_update_record
 
     #Inserting into the tracked object table
-    fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3]}
+    fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3], 'lat': trackedObject.lonlat[0], 'lon': trackedObject.lonlat[1]}
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateTable = "INSERT INTO obj_" + id + " " + keys_str + " VALUES " + values_str
     log.LOG_INFO("Update info is " + query_updateTable)
@@ -80,11 +80,11 @@ def newTrackingObject(trackedObject):
     id = str(trackedObject.uuid)[:8]
 
     #Query to make a new table corresponding to the current object
-    query_makeTable = "CREATE TABLE obj_" + id + " (time TIMESTAMP, pixel_x int, pixel_y int, pixel_w int, pixel_h int, latitude float(25), longitude float(25));"
+    query_makeTable = "CREATE TABLE obj_" + id + " (time TIMESTAMP, pixel_x int, pixel_y int, pixel_w int, pixel_h int, latitude float(25), longitude float(25), lat float(10), lon float(10));"
     new_data["query_makeTable"] = query_makeTable
 
     #Inserting into the newly created object
-    fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3]}
+    fields = {'time': trackedObject.latestUpdate, 'pixel_x':trackedObject.bbox[0], 'pixel_y':trackedObject.bbox[1], 'pixel_w':trackedObject.bbox[2], 'pixel_h':trackedObject.bbox[3], 'lat': trackedObject.lonlat[0], 'lon': trackedObject.lonlat[1]}
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateTable = "INSERT INTO obj_" + id + " " + keys_str + " VALUES " + values_str
     log.LOG_INFO("Update info is " + query_updateTable)
@@ -95,6 +95,7 @@ def newTrackingObject(trackedObject):
     keys_str, values_str = getKeysValuesStr(fields)
     query_updateMaster = "INSERT INTO " + masterTable + " " + keys_str + " VALUES " + values_str;
     new_data["query_updateMaster"] = query_updateMaster
+
 
     return new_data
 

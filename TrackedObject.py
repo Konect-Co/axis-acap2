@@ -12,6 +12,7 @@ class TrackedObject:
         self.latestUpdate = datetime.datetime.now()
         #(x, y, w, h) format
         self.bbox = bbox
+        self.lonlat = [None, None]
         self.color = genRandomColor()
         self.streakUntracked = 0
 
@@ -21,10 +22,12 @@ class TrackedObject:
 
     def getBbox(self):
         return self.bbox
-    
-    def updateBox(self, bbox, time=None):
+
+    def updateBox(self, bbox, pm, time=None):
         self.bbox = bbox
         self.latestUpdate = time if time is not None else datetime.datetime.now()
+        updatePixel = [bbox[1] + bbox[3], bbox[0] + bbox[2]/2]
+        self.lonlat = pm.pixel_to_lonlat(updatePixel)[0]
 
     def updateRace(self, race):
         self.race = race
