@@ -35,6 +35,17 @@ my_database = mysql.connector.connect(
 )
 cursor = my_database.cursor()
 
+def lonlat2Grid(lat_val, lon_val, lonlat_corners):
+    lat_start, lat_end, lon_start, lon_end = lonlat_corners
+    grid_val = [
+        int((lat_val-lat_start)*float(config["heatMapDimension"][0])/(lat_end-lat_start)),
+        int((lon_val-lon_start)*float(config["heatMapDimension"][1])/(lon_end-lon_start))
+    ]
+
+    print("[DEBUG]", [lat_val, lon_val], "maps to", grid_val)
+
+    return grid_val
+
 def computeNumPeople(recentRows):
     recentRows.sort(key=lambda row:row[1])
     
@@ -111,6 +122,18 @@ def computeIntersectionality(recentRows):
         intersectionality[gender_category][race_category][age_category] += 1
     return intersectionality 
 
+def computeHeatMap (recentRows, rowInfo):
+    heatMap = np.zeros((config["heatMapDimension"][0], config["heatMapDimension"][1]))
+    for row in recentRows:
+        tracking_id, start_time, end_time, active, race, gender, age = row
+        for tracking_elem in rowInfo[tracking_id]:
+            _, _, _, _, _, _, _, lat_val, lon_val = tracking_elem
+            #TODO: Generate the heatmap grid values from lat and lon
+            heatmap_x, heatmap_y = lonlat2Grid(lat_val, lon_val, config["lonlatCorners"])
+            #heatmap_x = 0, heatmap_y = 0
+            heatMap[heatmap_x][heatmap_y] += 1
+    return heatMap
+
 def genAnalytics():
     outputFile = getOutputFilename()
     
@@ -120,7 +143,14 @@ def genAnalytics():
     cursor.execute(rowQuery)
     recentRows = cursor.fetchall()
     log.LOG_INFO("Obtained records from past " + str(frequency) + " hour(s)")
-    
+
+    rowInfo = {}
+    for row in recentRows:
+        tracking_id, _, _ , _, _, _, _ = row
+        selectQuery = "select * from obj_" + tracking_id + ";"
+        cursor.execute(selectQuery)
+        rowInfo[tracking_id] = cursor.fetchall()
+
     numPeopleStartTime, numPeopleFrequency, numPeopleVal = computeNumPeople(recentRows)
     analytics["numPeople"] = {}
     analytics["numPeople"]["numPeopleStartTime"] = numPeopleStartTime
@@ -133,9 +163,16 @@ def genAnalytics():
     analytics["numPeople"]["numPeopleVal"] = numPeopleVal
 
     analytics["intersectionality"] = computeIntersectionality(recentRows).tolist()
+
+    analytics["heatMap"] = {}
+    analytics["heatMap"]["heatMapDimension"] = config["heatMapDimension"]
+    analytics["heatMap"]["lonlatCorners"] = config["lonlatCorners"]
+    analytics["heatMap"]["value"] = computeHeatMap(recentRows, rowInfo).tolist()
     
     log.LOG_INFO("Finished computing analytics. Writing to output file.")
 
+    #TODO: Remove later on
+    outputFile = "./analyticsRecords/latest.json"
     with open(outputFile, 'w') as f:
         json.dump(analytics, f, indent=2)
         foo = 1
