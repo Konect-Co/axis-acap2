@@ -2,6 +2,7 @@ from cv_model import pred
 from mtcnn.mtcnn import MTCNN
 from tensorflow.keras.models import load_model
 from TrackedObject import TrackedObject
+from PixelMapper import PixelMapper
 
 import time
 import numpy as np
@@ -11,9 +12,29 @@ import log
 import utils
 import databaseUpdate
 import readUtils
+import requests
+import math
+import json
 
 face_detector = MTCNN()
 demographics_model = load_model('KonectDemographics.h5')
+
+with open("heatmap_config.json", "r") as read_file:
+	heatmap_data = json.load(read_file)
+	read_file.close()
+
+full_heatmap = np.zeros((heatmap_data["heatmap_width"], heatmap_data["heatmap_height"]))
+print("Original heatmap: ")
+print(full_heatmap)
+
+def updateHeatMap(pixelCoords, lonlat_array, lonlat_origin, updatePixel):
+	pm = PixelMapper(pixelCoords, lonlat_array, lonlat_origin)
+	heatmap_pixel = pm.pixel_to_lonlat(updatePixel)
+	log.LOG_INFO(heatmap_pixel)
+	heatmap_x = math.floor(heatmap_pixel[0][0])
+	heatmap_y = math.floor(heatmap_pixel[0][1])
+
+	full_heatmap[heatmap_x][heatmap_y] += 1
 
 def xywh2xyxy(xywh):
 	return [xywh[0], xywh[1], xywh[0]+xywh[2], xywh[1]+xywh[3]]
@@ -42,11 +63,12 @@ def preprocess_image(image_orig):
 	return image
 
 def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, verbose=False):
-	detection_threshold=0.3
-	score_add_threshold = 0.3
+	detection_threshold=0.5
+	score_add_threshold = 0.5
+	url = 'http://localhost:3000'
 
-	iou_threshold = 0.3
-	face_ioa_threshold = 0.95
+	iou_threshold = 0.08
+	face_ioa_threshold = 0.90
 	deleteTrackedObjs = []
 	IOU_vals = {}
 
@@ -150,7 +172,8 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 		#removing every TrackedObject in deleteTrackedObjs
 		for trackedObjectToDelete in deleteTrackedObjs:
 			deletedObjects.append(trackedObjectToDelete)
-			databaseUpdate.deleteTrackingObject(trackedObjectToDelete)
+			data = databaseUpdate.deleteTrackingObject(trackedObjectToDelete)
+			x = requests.post(url, data=data)
 			trackingObjs.remove(trackedObjectToDelete)
 
 		#adding new TrackedObject for every bounding box index in newTrackedObj
@@ -161,6 +184,12 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 			trackerObj.updateBox(bbox)
 			trackerObj.tracker.init(frame, tuple(bbox))
 			trackingObjs.append(trackerObj)
+
+		for trackedObj in trackingObjs:
+			newPixelCoords = [trackedObj.getBbox()[1] + trackedObj.getBbox()[3], trackedObj.getBbox()[0] + trackedObj.getBbox()[2]/2]
+			updateHeatMap(heatmap_data["pixel_coords"], heatmap_data["target_coords"], heatmap_data["lonlat_orig"], newPixelCoords)
+
+		print(full_heatmap)
 
 	#TODO: Santript, I wrote the demographics updating code here, but commented it since untested
 	#Maybe we can go through it together and make it work
@@ -221,7 +250,8 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 
 def track():
 	scaling = 6
-	name = "video"
+	url = 'http://localhost:3000'
+	name = "Output"
 	fromLive = False
 	writeOrig = False
 	verbose = False
@@ -237,7 +267,7 @@ def track():
 	if fromLive:
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
-		cap = cv2.VideoCapture(name + "_orig.mp4")
+		cap = cv2.VideoCapture(name + "_orig2.mp4")
 
 	#preparing the video out writer
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -254,7 +284,7 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 8):
+		if (frame_no > 10):
 			break
 
 		ret, frame = cap.read()
@@ -273,7 +303,8 @@ def track():
 	delete = False
 	if delete:
 		for trackingObj in trackingObjs:
-			databaseUpdate.deleteTrackingObject(trackingObj)
+			data = databaseUpdate.deleteTrackingObject(trackingObj)
+			x = requests.post(url, data=data)
 	else:
 		log.LOG_INFO("To clear table, execute following statements:\n***")
 		for trackedObject in trackingObjs:

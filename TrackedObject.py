@@ -19,6 +19,9 @@ class TrackedObject:
         self.gender = None
         self.race = None
 
+    def getBbox(self):
+        return self.bbox
+    
     def updateBox(self, bbox, time=None):
         self.bbox = bbox
         self.latestUpdate = time if time is not None else datetime.datetime.now()
