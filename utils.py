@@ -1,5 +1,7 @@
-#box format: [x, y, height, width] where (x,y) is the top left corner
+import cv2
+import numpy as np
 
+#box format: [x, y, height, width] where (x,y) is the top left corner
 #this function computes the area of a box
 def computeArea(box):
 	box_reformed = [box[0], box[1], box[0]+box[2], box[1]+box[3]]
@@ -45,3 +47,21 @@ def computeIOA (boxA, boxB):
 
 	#returning IOA
 	return ioa
+
+def xyxy2yxhw(xyxy):
+	return [xyxy[1], xyxy[0], xyxy[3]-xyxy[1], xyxy[2]-xyxy[0]]
+
+def interpret_demographics_label(age_label, gender_label, race_label):
+	races = ["White", "Black", "Asian", "Indian", "Other"]
+	age = int(age_label[0]*116)
+	gender = "male" if gender_label[0]<0.5 else "female"
+	race = races[np.argmax(race_label.flatten())]
+
+	return age, gender, race
+
+def preprocess_image(image_orig):
+	image = cv2.resize(image_orig, (150, 150))
+	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+	image = np.expand_dims(image, 0).astype(np.float16)
+	image = image/255
+	return image

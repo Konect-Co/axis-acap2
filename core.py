@@ -4,67 +4,42 @@ from tensorflow.keras.models import load_model
 from TrackedObject import TrackedObject
 from PixelMapper import PixelMapper
 
-import time
 import numpy as np
 import cv2
-import os
 import log
 import utils
 import databaseUpdate
 import readUtils
 import requests
-import math
 import json
 
 face_detector = MTCNN()
 demographics_model = load_model('KonectDemographics.h5')
 
+detection_threshold=0.5
+score_add_threshold = 0.5
+url = 'http://localhost:3000'
+iou_threshold = 0.08
+face_ioa_threshold = 0.90
+
+scaling = 6
+name = "Output"
+fromLive = False
+writeOrig = False
+verbose = False
+
 with open("heatmap_config.json", "r") as read_file:
 	heatmap_data = json.load(read_file)
 	read_file.close()
 
-pm = PixelMapper(heatmap_data["pixel_coords"], heatmap_data["lonlat_coords"], heatmap_data["lonlat_center"])
-
-def xywh2xyxy(xywh):
-	return [xywh[0], xywh[1], xywh[0]+xywh[2], xywh[1]+xywh[3]]
-def xyxy2xywh(xyxy):
-	return [xyxy[0], xyxy[1], xyxy[2]-xyxy[0], xyxy[3]-xyxy[1]]
-def xyxy2yxhw(xyxy):
-	return [xyxy[1], xyxy[0], xyxy[3]-xyxy[1], xyxy[2]-xyxy[0]]
-
-def interpret_demographics_label(age_label, gender_label, race_label):
-	races = ["White", "Black", "Asian", "Indian", "Other"]
-	age = int(age_label[0]*116)
-	gender = "male" if gender_label[0]<0.5 else "female"
-	#print("age_label:", age_label)
-	#print("Age:",age)
-	#print(races, race_label.flatten())
-	#print(gender_label[0])
-	race = races[np.argmax(race_label.flatten())]
-
-	return age, gender, race
-
-def preprocess_image(image_orig):
-	image = cv2.resize(image_orig, (150, 150))
-	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-	image = np.expand_dims(image, 0).astype(np.float16)
-	image = image/255
-	return image
+pm = PixelMapper(heatmap_data["pixel_coords"], heatmap_data["lonlat_coords"])
 
 def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, verbose=False):
-	detection_threshold=0.5
-	score_add_threshold = 0.5
-	url = 'http://localhost:3000'
-
-	iou_threshold = 0.08
-	face_ioa_threshold = 0.90
-	deleteTrackedObjs = []
 	IOU_vals = {}
+	deleteTrackedObjs = []
+	rectangles = []		
 
-	if performPrediction:
-		output = pred.predict(frame)
-
-	rectangles = []
+	#going through each frame and updating bbox for each object
 	for trackerObj in trackingObjs:
 		success, box = trackerObj.tracker.update(frame)
 		if verbose:
@@ -73,9 +48,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 			trackerObj.streakUntracked = 0
 			trackerObj.updateBox(box, pm)
 			(x, y, w, h) = [int(v) for v in box]
-			#_ = cv2.rectangle(frame, (x, y), (x+w, y+h), trackerObj.color, 2)
 			rectangles.append(((x,y), (x+w, y+h), trackerObj.color, trackerObj.uuid))
-			#cv2.putText(frame, "ID: " + str(trackerObj.uuid)[:5], (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 1, trackerObj.color, 2)
 		else:
 			trackerObj.streakUntracked += 1
 			if (trackerObj.streakUntracked > 0):
@@ -83,10 +56,16 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 			if verbose:
 				log.LOG_ERR("Failed at frame", frame_no)
 
+	#removing objects
 	for obj in deleteTrackedObjs:
 		trackingObjs.remove(obj)
 
+	#making predictions and determining bbox
 	if performPrediction:
+		deleteTrackedObjs = []
+		currTrackedObj = None
+
+		output = pred.predict(frame)
 		numDetections = np.where(np.array(output['scores']) > detection_threshold)[0].size
 		output['scores'] = output['scores'][:numDetections]
 		output['boxes'] = output['boxes'][:numDetections]
@@ -94,8 +73,9 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 
 		for index in range(len(output['boxes'])):
 			currBox = output['boxes'][index]
-			output['boxes'][index] = xyxy2yxhw([int(currBox[i]*frame.shape[i%2]) for i in range(len(currBox))])
+			output['boxes'][index] = utils.xyxy2yxhw([int(currBox[i]*frame.shape[i%2]) for i in range(len(currBox))])
 
+		#checking if new detections are greater than threshold
 		newTrackedObjs = []
 		numAdditions = np.where(np.array(output['scores']) > score_add_threshold)[0].size
 		if (numAdditions == 0):
@@ -108,17 +88,11 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 		#each (key, value) of the dictionary is (<uuid of tracked object to_curr>, <dictionary of IoUs>)
 		#each (key, value) of <dictionary of IoUs> is (<index of bounding box bb_curr>, <IoU of to_curr.box and bb_curr>)
 		
-		#log.LOG_INFO("New tracked objects: ", newTrackedObjs)
-		#log.LOG_INFO("Boxes: ", output['boxes'])
 		for trackedObj in trackingObjs:
 			IOU_vals[trackedObj.uuid] = {i:utils.computeIOU(list(trackedObj.bbox), output['boxes'][i]) for i in newTrackedObjs} if newTrackedObjs else None
-		#log.LOG_INFO(IOU_vals)
 
 		#setting up list of newTrackedObjs to add (starts off full, and boxes that match existing TrackedObjects are gradually removed)
 		#setting up list of deleteTrackedObjs (starts off empty, trackedObjects with no corresponding bounding box are added)
-
-		deleteTrackedObjs = []
-		currTrackedObj = None
 
 		for currTrackedObjUUID, trackedObjIoUs in IOU_vals.items():
 			#currTrackedObj = <find tracked object with specified uuid>
@@ -135,19 +109,12 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 						maxIoU = IOU_vals[currTrackedObjUUID][index]
 						maxBoxIndex = index
 
-				#log.LOG_INFO("UUID: ",currTrackedObj.uuid)
-				#log.LOG_INFO("Bounding box: ", currTrackedObj.bbox)
-				#log.LOG_INFO("Maximum IOU: ", maxIoU)
-				#log.LOG_INFO("Max box index: ", maxBoxIndex)
-				#log.LOG_INFO("New tracked objects: ", newTrackedObjs)
-
 				#We have a match between currTrackedObject and maxBox, and can update the box value
 				if maxIoU > iou_threshold:
 					maxBox = output['boxes'][maxBoxIndex]
 					#convert maxBox to proper format
 					currTrackedObj.updateBox(maxBox, pm)
 
-					#log.LOG_INFO(IOU_vals)
 					for uuid in list(IOU_vals.keys()):
 						del IOU_vals[uuid][maxBoxIndex]
 						
@@ -166,26 +133,16 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 
 		#adding new TrackedObject for every bounding box index in newTrackedObj
 		for newTrackedObj in newTrackedObjs:
-			#log.LOG_INFO("New Tracked Object: ", newTrackedObj)
 			bbox = output['boxes'][newTrackedObj]
 			trackerObj = TrackedObject(cv2.TrackerCSRT_create())
 			trackerObj.updateBox(bbox, pm)
 			trackerObj.tracker.init(frame, tuple(bbox))
 			trackingObjs.append(trackerObj)
-
-		# for trackedObj in trackingObjs:
-		# 	newPixelCoords = [trackedObj.getBbox()[1] + trackedObj.getBbox()[3], trackedObj.getBbox()[0] + trackedObj.getBbox()[2]/2]
-		# 	updateHeatMap(heatmap_data["pixel_coords"], heatmap_data["lonlat_coords"], newPixelCoords, heatmap_data["lonlat_target_coords"], heatmap_data["lonlat_center"])
-
-		#print(full_heatmap)
-
-	#TODO: Santript, I wrote the demographics updating code here, but commented it since untested
-	#Maybe we can go through it together and make it work
 	
 	#making a copy so that when TrackedObject is removed from this list, it remains in original
-
 	if performPrediction:
-		
+
+		#TODO: Write this code using indices instead of copying
 		trackingObjsDemographics = trackingObjs.copy()
 		#obtaining face detections for current frame
 		faces = face_detector.detect_faces(frame)
@@ -209,11 +166,11 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 
 					face_roi = frame[face_y:face_y2, face_x:face_x2]
 					cv2.imwrite('images/img_{}.png'.format(str(trackingObj.uuid)[:6]), face_roi)
-					face_roi = preprocess_image(face_roi)
+					face_roi = utils.preprocess_image(face_roi)
 					
 					#predicting demographics
 					face_demographics = demographics_model.predict(face_roi)
-					age, gender, race = interpret_demographics_label(face_demographics[0][0], face_demographics[1][0], face_demographics[2][0])
+					age, gender, race = utils.interpret_demographics_label(face_demographics[0][0], face_demographics[1][0], face_demographics[2][0])
 					
 					#Updating the demographics of the tracking object=
 					trackingObj.updateAge(age)
@@ -231,28 +188,22 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 		_ = cv2.rectangle(frame, rectangle[0], rectangle[1], rectangle[2], 2)
 		cv2.putText(frame, "ID: " + str(rectangle[3])[:5], (rectangle[0][0], rectangle[0][1]-10), cv2.FONT_HERSHEY_SIMPLEX, 1, rectangle[2], 2)
 
-	#TODO: We now need to update the database based on the demographics predictions that are coming in
-	#Santript, this is commented because addToDatabase is not finished/tested
 	out.write(frame)
 	databaseUpdate.addToDatabase(trackingObjs)
 
 def track():
-	scaling = 6
-	url = 'http://localhost:3000'
-	name = "Output"
-	fromLive = False
-	writeOrig = False
-	verbose = False
-	if (fromLive):
-		fps = 1
-		duration=2
-		ip='10.0.0.146'
 
 	frame_no = -1
 	trackingObjs = []
 	deleteTrackedObjs = []
+	delete = False
+
 	#creating the video capture for the input video
 	if fromLive:
+		fps = 1
+		duration=2
+		ip='10.0.0.146'
+
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
 		cap = cv2.VideoCapture(name + "_orig2.mp4")
@@ -264,6 +215,7 @@ def track():
 	if fromLive == False:
 		fps = cap.get(cv2.CAP_PROP_FPS)
 	log.LOG_INFO("FPS:", fps)
+
 	if writeOrig:
 		orig = cv2.VideoWriter(name + "_orig.avi", fourcc, fps, (width,height))
 	out = cv2.VideoWriter(name + "_out.avi", fourcc, fps, (width,height))
@@ -272,7 +224,7 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 500):
+		if (frame_no > 30):
 		 	break
 
 		ret, frame = cap.read()
@@ -288,7 +240,7 @@ def track():
 	if writeOrig:
 		orig.release()
 
-	delete = False
+	#deleting tracking objects or supplying commands to delete
 	if delete:
 		for trackingObj in trackingObjs:
 			data = databaseUpdate.deleteTrackingObject(trackingObj)
@@ -309,20 +261,3 @@ def track():
 
 if __name__ == '__main__':
 	track()
-
-"""
-if __name__ == "__main__":
-	start_time = time.time()
-	seconds = 3;
-
-	measure1 = time.time()
-	measure2 = time.time()
-
-	while True:
-		if measure2 - measure1 >= seconds:
-			generateOutput()
-			measure1 = measure2
-			measure2 = time.time()
-		else:
-			measure2 = time.time()
-"""

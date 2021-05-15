@@ -8,7 +8,7 @@ Create an object for converting pixels to geographic coordinates,
 using four points with known locations which form a quadrilteral in both planes
 """
 class PixelMapper(object):
-	def __init__(self, pixel_array, lonlat_array, lonlat_center):
+	def __init__(self, pixel_array, lonlat_array):
 		#converting pixel and lonlat array to numpy array
 		pixel_array = np.array(pixel_array)
 		lonlat_array = np.array(lonlat_array)
