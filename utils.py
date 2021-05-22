@@ -1,5 +1,6 @@
-import cv2
 import numpy as np
+import torchvision
+import cv2
 
 #box format: [x, y, height, width] where (x,y) is the top left corner
 #this function computes the area of a box
@@ -51,17 +52,40 @@ def computeIOA (boxA, boxB):
 def xyxy2yxhw(xyxy):
 	return [xyxy[1], xyxy[0], xyxy[3]-xyxy[1], xyxy[2]-xyxy[0]]
 
-def interpret_demographics_label(age_label, gender_label, race_label):
-	races = ["White", "Black", "Asian", "Indian", "Other"]
-	age = int(age_label[0]*116)
-	gender = "male" if gender_label[0]<0.5 else "female"
-	race = races[np.argmax(race_label.flatten())]
+def interpret_demographics_label(outputs):
+	outputs = outputs.cpu().detach().numpy()
+	outputs = np.squeeze(outputs)
 
-	return age, gender, race
+	race_outputs = outputs[:7]
+	gender_outputs = outputs[7:9]
+	age_outputs = outputs[9:18]
 
-def preprocess_image(image_orig):
-	image = cv2.resize(image_orig, (150, 150))
-	image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-	image = np.expand_dims(image, 0).astype(np.float16)
-	image = image/255
+	race_score = np.exp(race_outputs) / np.sum(np.exp(race_outputs))
+	gender_score = np.exp(gender_outputs) / np.sum(np.exp(gender_outputs))
+	age_score = np.exp(age_outputs) / np.sum(np.exp(age_outputs))
+
+	race_pred = np.argmax(race_score)
+	gender_pred = np.argmax(gender_score)
+	age_pred = np.argmax(age_score)
+
+	gender_labels = ['Male', 'Female']
+	race_labels = ['White', 'Black', 'Latino/Hispanic', 'East Asian', 'Southeast Asian', 'Indian', 'Middle Eastern']
+	age_labels = ['0-2', '3-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69' '70+']
+
+	return gender_labels[gender_pred], race_labels[race_pred], age_labels[age_pred]
+
+def preprocess_demographics_img(image_name, device):
+	trans = torchvision.transforms.Compose([
+	    torchvision.transforms.ToPILImage(),
+	    torchvision.transforms.Resize((224, 224)),
+	    torchvision.transforms.ToTensor(),
+	    torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+	])
+
+	#image = dlib.load_rgb_image(img_name)
+	image = cv2.cvtColor(image_name, cv2.COLOR_BGR2RGB)
+	image = trans(image_name)
+	image = image.view(1, 3, 224, 224)  # reshape image to match model dimensions (1 batch size)
+	image = image.to(device)
+
 	return image

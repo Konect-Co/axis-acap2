@@ -3,6 +3,9 @@ from mtcnn.mtcnn import MTCNN
 from tensorflow.keras.models import load_model
 from TrackedObject import TrackedObject
 from PixelMapper import PixelMapper
+# from torch.nn import Linear
+# from torchvision.models import resnet34
+# from torchvision.transforms import Compose, ToPILImage, Resize, ToTensor, Normalize
 
 import numpy as np
 import cv2
@@ -12,9 +15,22 @@ import databaseUpdate
 import readUtils
 import requests
 import json
+# import torch.device as device
+# import torch.load as load
+#import torchvision.transforms as transforms
+import torch
+import torchvision
 
 face_detector = MTCNN()
-demographics_model = load_model('KonectDemographics.h5')
+device = torch.device("cpu")
+
+log.LOG_INFO("Loading Demographics Model")
+demographics_model = torchvision.models.resnet34(pretrained=True)
+demographics_model.fc = torch.nn.Linear(demographics_model.fc.in_features, 18)
+demographics_model.load_state_dict(torch.load('./cv_model/pytorch/res34_fair_align_multi_7_20190809.pt', map_location=device))
+demographics_model = demographics_model.to(device)
+demographics_model.eval()
+log.LOG_INFO("Loaded model")
 
 detection_threshold=0.5
 score_add_threshold = 0.5
@@ -33,6 +49,7 @@ with open("heatmap_config.json", "r") as read_file:
 	read_file.close()
 
 pm = PixelMapper(heatmap_data["pixel_coords"], heatmap_data["lonlat_coords"])
+
 
 def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, verbose=False):
 	IOU_vals = {}
@@ -166,11 +183,12 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 
 					face_roi = frame[face_y:face_y2, face_x:face_x2]
 					cv2.imwrite('images/img_{}.png'.format(str(trackingObj.uuid)[:6]), face_roi)
-					face_roi = utils.preprocess_image(face_roi)
+					image = utils.preprocess_demographics_img(face_roi, device)
 					
 					#predicting demographics
-					face_demographics = demographics_model.predict(face_roi)
-					age, gender, race = utils.interpret_demographics_label(face_demographics[0][0], face_demographics[1][0], face_demographics[2][0])
+					face_demographics = demographics_model(image)
+					gender, race, age = utils.interpret_demographics_label(face_demographics)
+					#age, gender, race = utils.interpret_demographics_label(face_demographics[0][0], face_demographics[1][0], face_demographics[2][0])
 					
 					#Updating the demographics of the tracking object=
 					trackingObj.updateAge(age)
