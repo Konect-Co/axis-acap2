@@ -3,9 +3,6 @@ from mtcnn.mtcnn import MTCNN
 from tensorflow.keras.models import load_model
 from TrackedObject import TrackedObject
 from PixelMapper import PixelMapper
-# from torch.nn import Linear
-# from torchvision.models import resnet34
-# from torchvision.transforms import Compose, ToPILImage, Resize, ToTensor, Normalize
 
 import numpy as np
 import cv2
@@ -15,9 +12,6 @@ import databaseUpdate
 import readUtils
 import requests
 import json
-# import torch.device as device
-# import torch.load as load
-#import torchvision.transforms as transforms
 import torch
 import torchvision
 
@@ -36,10 +30,10 @@ detection_threshold=0.5
 score_add_threshold = 0.5
 url = 'http://localhost:3000'
 iou_threshold = 0.08
-face_ioa_threshold = 0.90
+face_ioa_threshold = 0.9
 
 scaling = 6
-name = "Output"
+name = "video"
 fromLive = False
 writeOrig = False
 verbose = False
@@ -163,6 +157,7 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 		trackingObjsDemographics = trackingObjs.copy()
 		#obtaining face detections for current frame
 		faces = face_detector.detect_faces(frame)
+		print(len(faces))
 		for face in faces:
 			#index to iterate through the tracking objects
 			i = 0
@@ -195,6 +190,11 @@ def processFrame(frame, trackingObjs, deletedObjects, performPrediction, out, ve
 					trackingObj.updateGender(gender)
 					trackingObj.updateRace(race)
 
+					print(trackingObj.uuid)
+					print("Gender:", gender)
+					print("Race:", race)
+					print("Age:", age)
+
 					#Removing the object so it is not updated again in the current frame
 					trackingObjsDemographics.remove(trackingObj)
 					continue
@@ -218,13 +218,13 @@ def track():
 
 	#creating the video capture for the input video
 	if fromLive:
-		fps = 1
-		duration=2
-		ip='10.0.0.146'
+		fps = 10
+		duration=5
+		ip='10.0.0.148'
 
 		cap = readUtils.readVideo(fps, duration, ip)
 	else:
-		cap = cv2.VideoCapture(name + "_orig2.mp4")
+		cap = cv2.VideoCapture(name + "_orig.avi")
 
 	#preparing the video out writer
 	fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -242,8 +242,8 @@ def track():
 	while True:
 		frame_no += 1
 
-		if (frame_no > 30):
-		 	break
+		# if (frame_no > 30):
+		#  	break
 
 		ret, frame = cap.read()
 		if not ret:

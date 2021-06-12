@@ -3,7 +3,7 @@ import mysql.connector
 import datetime
 import numpy as np
 
-import log
+#import log
 
 databaseHost = "18.188.84.0"
 databaseUser = "ravit"
@@ -12,9 +12,9 @@ database = "spaspect"
 databaseConfigFile = "config.json"
 
 #lower_bound
-gender_categories = ["male", "female", None]
-age_categories = [0, 10, 20, 40, 65]
-race_categories = ["White", "Black", "Asian", "Indian", "Other", None]
+gender_categories = ["Male", "Female", None]
+age_categories = ['0-2', '3-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69' '70+']
+race_categories = ["White", "Black", "Asian", "Latino/Hispanic", "East Asian", "Southeast Asian", "Indian", "Middle Eastern", None]
 
 
 def getOutputFilename():
@@ -61,8 +61,8 @@ def computeNumPeople(recentRows):
     while (currTime < endTime):
         currCount = 0
         genderCount = [0, 0, 0]
-        raceCount = [0, 0, 0, 0, 0, 0]
-        ageCount = [0, 0, 0, 0, 0, 0]
+        raceCount = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ageCount = [0, 0, 0, 0, 0, 0, 0, 0, 0]
         upperBound = currTime + datetime.timedelta(0,numPeopleInterval*60)
 
         for recentRow in recentRows:
@@ -79,7 +79,7 @@ def computeNumPeople(recentRows):
                 age_category = -1
                 if (agePred is not None):
                     for i in range(1, len(age_categories)):
-                        if (agePred >= age_categories[i]):
+                        if (agePred == age_categories[i]):
                             age_category = i
                         else:
                             break
@@ -102,7 +102,7 @@ def computeNumPeople(recentRows):
 
 def computeIntersectionality(recentRows):
     #gender, race, age table indicating number of people in past specified amount of time
-    intersectionality = np.zeros((2, 5, 5))
+    intersectionality = np.zeros((2, 8, 8))
     for row in recentRows:
         tracking_id, start_time, end_time, active, race, gender, age = row
         
@@ -134,6 +134,15 @@ def computeHeatMap (recentRows, rowInfo):
             heatMap[heatmap_x][heatmap_y] += 1
     return heatMap
 
+def addLonLat(rowInfo):
+    lonLatInfo = []
+
+    for key in list(rowInfo.keys()):
+        for i in range(len(rowInfo[key])):
+            lonLatInfo.append([rowInfo[key][i][5], rowInfo[key][i][6], 0.1])
+
+    return lonLatInfo
+
 def genAnalytics():
     outputFile = getOutputFilename()
     
@@ -142,7 +151,8 @@ def genAnalytics():
     rowQuery = "select * from cameraRecords where start_time >= Date_sub(now(), interval " + str(frequency) + " hour);"
     cursor.execute(rowQuery)
     recentRows = cursor.fetchall()
-    log.LOG_INFO("Obtained records from past " + str(frequency) + " hour(s)")
+    #log.LOG_INFO("Obtained records from past " + str(frequency) + " hour(s)")
+    print("Obtained records from past " + str(frequency) + " hour(s)")
 
     rowInfo = {}
     for row in recentRows:
@@ -163,17 +173,20 @@ def genAnalytics():
     analytics["numPeople"]["numPeopleVal"] = numPeopleVal
 
     analytics["intersectionality"] = computeIntersectionality(recentRows).tolist()
+    analytics["lonlat"] = addLonLat(rowInfo)
 
-    analytics["heatMap"] = {}
-    analytics["heatMap"]["heatMapDimension"] = config["heatMapDimension"]
-    analytics["heatMap"]["lonlatCorners"] = config["lonlatCorners"]
-    analytics["heatMap"]["value"] = computeHeatMap(recentRows, rowInfo).tolist()
+    # analytics["heatMap"] = {}
+    # analytics["heatMap"]["heatMapDimension"] = config["heatMapDimension"]
+    # analytics["heatMap"]["lonlatCorners"] = config["lonlatCorners"]
+    # analytics["heatMap"]["value"] = computeHeatMap(recentRows, rowInfo).tolist()
     
-    log.LOG_INFO("Finished computing analytics. Writing to output file.")
+    #log.LOG_INFO("Finished computing analytics. Writing to output file.")
+    print("Finished computing analytics. Writing to output file.")
     with open(outputFile, 'w') as f:
         json.dump(analytics, f, indent=2)
         foo = 1
-    log.LOG_INFO("Written to output file", outputFile)
+    #log.LOG_INFO("Written to output file", outputFile)
+    print("Written to output file", outputFile)
 
 if (__name__ == '__main__'):
     genAnalytics()
